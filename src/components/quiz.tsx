@@ -115,11 +115,9 @@ export function Quiz() {
           </Reveal>
           <Reveal delay={150}>
             <div className="ink-frame bg-yellow px-5 py-3 shadow-[6px_6px_0_rgba(20,33,61,0.9)]">
-              <p className="font-display text-2xl leading-none text-ink">
-                10 <span className="text-red">/</span> 32
-              </p>
+              <p className="font-display text-2xl leading-none text-ink">10</p>
               <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-ink/70 mt-1">
-                Preguntas al azar del banco oficial
+                Preguntas al azar
               </p>
             </div>
           </Reveal>
@@ -267,7 +265,7 @@ export function Quiz() {
                     onClick={restart}
                     className="font-display text-xl uppercase tracking-[0.08em] bg-red text-white border-[3px] border-ink px-7 py-3.5 shadow-[6px_6px_0_rgba(20,33,61,0.9)] transition-all duration-300 hover:-translate-y-1 hover:bg-red-deep hover:shadow-[8px_8px_0_rgba(20,33,61,0.9)]"
                   >
-                    Otras 10 al azar ↺
+                    Nuevo examen ↺
                   </button>
                   <a
                     href="#instalacion"
@@ -283,8 +281,8 @@ export function Quiz() {
 
         <Reveal delay={200}>
           <p className="mt-6 text-sm font-semibold text-ink-soft max-w-2xl">
-            El simulacro toma 10 preguntas al azar del banco de 32, en distinto orden cada vez. Las respuestas siguen el
-            procedimiento oficial descrito en las cuatro etapas de esta guía.
+            Cada visita te presenta 10 preguntas distintas, en orden aleatorio. Las respuestas siguen el procedimiento
+            oficial descrito en las cuatro etapas de esta guía.
           </p>
         </Reveal>
       </div>
