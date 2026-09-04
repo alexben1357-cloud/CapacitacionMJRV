@@ -1,427 +1,424 @@
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type RefObject,
+  useCallback, useEffect, useMemo, useRef, useState,
+  type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject,
 } from "react";
+import { Reveal } from "./bits";
 
 /* =============== Podcast: El manual de supervivencia para el MJRV 2027 ===============
-   UNA sola forma de escuchar. El botón de play intenta la reproducción directa del
-   archivo de Drive (un clic). Si Drive la bloquea, ese mismo botón abre el reproductor
-   integrado — nunca hay dos reproductores en pantalla al mismo tiempo. */
+   Reproducción interna desde Google Drive:
+   1) Se intenta el stream directo del archivo (audio oculto, sin reproductor visible).
+   2) Si Drive protege el archivo, se arma un reproductor de Drive INVISIBLE
+      (opacidad 0) calzado sobre el botón: cada pulsación del botón reproduce o
+      detiene el audio internamente, sin mostrar jamás la interfaz de Drive.   */
 
 const FILE_ID = "1ASF-95B1-YhSpNKKB6R4jBYNAFzfHIZ4";
-const EMBED_URL = `https://drive.google.com/file/d/${FILE_ID}/preview`;
+const PREVIEW_URL = `https://drive.google.com/file/d/${FILE_ID}/preview`;
 
-/* Endpoints de descarga directa de Google Drive (el audio HTML5 los sigue vía redirect). */
-const DIRECT_URLS = [
-  `https://drive.google.com/uc?export=download&id=${FILE_ID}`,
+const SOURCES = [
   `https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&confirm=t`,
+  `https://drive.google.com/uc?export=download&id=${FILE_ID}&confirm=t`,
+  `https://docs.google.com/uc?export=download&id=${FILE_ID}&confirm=t`,
 ];
 
-const DIRECT_TIMEOUT = 3000;
-
-export type Mode = "idle" | "loading" | "custom" | "embed";
-
-export interface Podcast {
-  mode: Mode;
-  active: boolean;
-  time: number;
-  dur: number;
-  toggle: () => void;
-  seek: (frac: number) => void;
-  goPlay: () => void;
-  playerRef: RefObject<HTMLElement>;
-}
+/* tiempo máximo esperando el stream directo antes de armar el motor interno */
+const DIRECT_BUDGET = 8000;
 
 const fmt = (s: number) => {
-  if (!isFinite(s) || s < 0) return "0:00";
+  if (!isFinite(s) || s <= 0) return "--:--";
   const m = Math.floor(s / 60);
   const r = Math.floor(s % 60);
   return `${m}:${r.toString().padStart(2, "0")}`;
 };
 
+export type Engine = "pending" | "direct" | "phantom";
+
+export interface Podcast {
+  engine: Engine;
+  playing: boolean;
+  loading: boolean;
+  time: number;
+  dur: number;
+  press: () => void;
+  goHero: () => void;
+  seek: (frac: number) => void;
+  heroRef: RefObject<HTMLElement>;
+  phantomRef: RefObject<HTMLIFrameElement>;
+}
+
 export function usePodcast(): Podcast {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const tryIdx = useRef(0);
-  const timer = useRef<number | null>(null);
-  const modeRef = useRef<Mode>("idle");
-  const playerRef = useRef<HTMLElement>(null);
-  const [mode, setModeState] = useState<Mode>("idle");
-  const [active, setActive] = useState(false);
+  const srcIdx = useRef(0);
+  const watchdog = useRef<number | null>(null);
+  const engineRef = useRef<Engine>("pending");
+  const [engine, setEngineState] = useState<Engine>("pending");
+  const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [time, setTime] = useState(0);
   const [dur, setDur] = useState(0);
+  const heroRef = useRef<HTMLElement>(null);
+  const phantomRef = useRef<HTMLIFrameElement>(null);
+  const lastToggle = useRef(0);
 
-  const setMode = (m: Mode) => {
-    modeRef.current = m;
-    setModeState(m);
-  };
-  const clearTimer = () => {
-    if (timer.current) {
-      window.clearTimeout(timer.current);
-      timer.current = null;
+  const setEngine = useCallback((e: Engine) => {
+    engineRef.current = e;
+    setEngineState(e);
+  }, []);
+
+  const clearWatchdog = useCallback(() => {
+    if (watchdog.current !== null) {
+      window.clearTimeout(watchdog.current);
+      watchdog.current = null;
     }
-  };
-  const killAudio = () => {
+  }, []);
+
+  /* paso al motor interno invisible (Drive protege el stream directo) */
+  const toPhantom = useCallback(() => {
+    if (engineRef.current === "phantom") return;
+    clearWatchdog();
     const a = audioRef.current;
     if (a) {
-      try {
-        a.pause();
-      } catch {
-        /* noop */
-      }
+      a.pause();
       a.removeAttribute("src");
-      try {
-        a.load();
-      } catch {
-        /* noop */
-      }
-      audioRef.current = null;
+      try { a.load(); } catch { /* noop */ }
     }
-  };
+    setLoading(false);
+    setPlaying(false);
+    setEngine("phantom");
+  }, [clearWatchdog, setEngine]);
 
-  const goEmbed = useCallback(() => {
-    clearTimer();
-    killAudio();
-    setMode("embed");
-    setActive(true);
-  }, []);
-
-  const onDirectError = useCallback(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    tryIdx.current += 1;
-    if (tryIdx.current < DIRECT_URLS.length) {
-      a.src = DIRECT_URLS[tryIdx.current];
-      a.load();
-      a.play().catch(() => {});
-    } else {
-      goEmbed();
-    }
-  }, [goEmbed]);
-
-  const beginDirect = useCallback(() => {
-    setMode("loading");
-    setActive(false);
-    setTime(0);
-    setDur(0);
-    const a = new Audio();
+  const ensureAudio = useCallback((): HTMLAudioElement => {
+    let a = audioRef.current;
+    if (a) return a;
+    a = new Audio();
     a.preload = "auto";
-    tryIdx.current = 0;
-    a.src = DIRECT_URLS[0];
-    audioRef.current = a;
-    a.addEventListener("playing", () => {
-      clearTimer();
-      setMode("custom");
-      setActive(true);
-    });
-    a.addEventListener("play", () => {
-      if (modeRef.current === "custom") setActive(true);
-    });
-    a.addEventListener("pause", () => {
-      if (modeRef.current === "custom") setActive(false);
-    });
-    a.addEventListener("error", onDirectError);
-    a.addEventListener("timeupdate", () => setTime(a.currentTime));
-    const onMeta = () => {
-      if (isFinite(a.duration) && a.duration > 0) setDur(a.duration);
+    const el = a;
+    el.addEventListener("timeupdate", () => setTime(el.currentTime));
+    const onReady = () => {
+      /* el archivo responde como audio: el stream directo es viable */
+      if (isFinite(el.duration) && el.duration > 0) setDur(el.duration);
+      if (engineRef.current === "pending") {
+        clearWatchdog();
+        setEngine("direct");
+        setLoading(false);
+      }
     };
-    a.addEventListener("loadedmetadata", onMeta);
-    a.addEventListener("durationchange", onMeta);
-    a.addEventListener("ended", () => {
-      setActive(false);
+    el.addEventListener("loadedmetadata", onReady);
+    el.addEventListener("canplay", onReady);
+    el.addEventListener("durationchange", onReady);
+    el.addEventListener("playing", () => {
+      clearWatchdog();
+      setEngine("direct");
+      setLoading(false);
+      setPlaying(true);
+    });
+    el.addEventListener("pause", () => setPlaying(false));
+    el.addEventListener("ended", () => {
+      setPlaying(false);
       setTime(0);
     });
-    a.play().catch(() => {});
-    timer.current = window.setTimeout(() => {
-      if (modeRef.current === "loading") goEmbed();
-    }, DIRECT_TIMEOUT);
-  }, [goEmbed, onDirectError]);
+    el.addEventListener("error", () => {
+      /* 1 = MEDIA_ERR_ABORTED: cambio de fuente intencional */
+      if (el.error && el.error.code === 1) return;
+      srcIdx.current += 1;
+      if (srcIdx.current < SOURCES.length && engineRef.current !== "phantom") {
+        el.src = SOURCES[srcIdx.current];
+        el.load();
+      } else {
+        toPhantom();
+      }
+    });
+    audioRef.current = a;
+    return a;
+  }, [clearWatchdog, setEngine, toPhantom]);
 
-  const toggle = useCallback(() => {
-    const m = modeRef.current;
-    if (m === "idle") {
-      beginDirect();
-      return;
-    }
-    if (m === "loading") return;
-    if (m === "custom") {
-      const a = audioRef.current;
-      if (!a) return;
-      if (a.paused) a.play().catch(() => {});
-      else a.pause();
-      return;
-    }
-    if (m === "embed") {
-      setActive((v) => !v);
-      return;
-    }
-  }, [beginDirect]);
-
-  const seek = useCallback((frac: number) => {
-    if (modeRef.current !== "custom") return;
-    const a = audioRef.current;
-    if (!a || !isFinite(a.duration)) return;
-    a.currentTime = frac * a.duration;
-    setTime(a.currentTime);
+  /* Pre-sondeo al cargar: averiguamos en segundo plano si Drive sirve el
+     archivo como stream directo. Así, cuando la persona pulsa REPRODUCIR,
+     un solo clic basta: o suena el stream directo, o el botón ya está calzado
+     sobre el reproductor interno invisible de Drive. */
+  useEffect(() => {
+    const a = ensureAudio();
+    srcIdx.current = 0;
+    a.src = SOURCES[0];
+    setLoading(true);
+    clearWatchdog();
+    watchdog.current = window.setTimeout(toPhantom, DIRECT_BUDGET);
+    a.load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const goPlay = useCallback(() => {
-    const m = modeRef.current;
-    if (m === "idle" || m === "embed") {
-      playerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const press = useCallback(() => {
+    /* solo opera en stream directo; en modo interno el clic lo recibe Drive */
+    if (engineRef.current !== "direct") return;
+    const a = ensureAudio();
+    if (a.paused) {
+      a.play().catch(() => { /* noop */ });
+    } else {
+      a.pause();
     }
-    toggle();
-  }, [toggle]);
+  }, [ensureAudio]);
 
-  useEffect(
-    () => () => {
-      clearTimer();
-      killAudio();
-    },
-    []
-  );
+  /* En modo interno el clic entra al iframe de Drive (origen cruzado) y su
+     evento NO burbujea al padre. La señal confiable de que el usuario pulsó el
+     reproductor invisible es que la ventana pierde el foco y el iframe pasa a
+     ser el activeElement. Lo detectamos para sincronizar vinilo/etiqueta y
+     devolvemos el foco a la página para que la siguiente pulsación vuelva a
+     ser detectable. */
+  useEffect(() => {
+    if (engine !== "phantom") return;
+    const onBlur = () => {
+      const now = Date.now();
+      if (now - lastToggle.current < 450) return; /* anti doble conteo */
+      if (document.activeElement !== phantomRef.current) return;
+      lastToggle.current = now;
+      setPlaying((p) => !p);
+      window.setTimeout(() => {
+        phantomRef.current?.blur();
+        window.focus();
+      }, 120);
+    };
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, [engine]);
 
-  return { mode, active, time, dur, toggle, seek, goPlay, playerRef };
+  const goHero = useCallback(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    heroRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  }, []);
+
+  const seek = useCallback((frac: number) => {
+    if (engineRef.current !== "direct") return;
+    const a = audioRef.current;
+    if (a && isFinite(dur) && dur > 0) {
+      a.currentTime = Math.min(Math.max(frac, 0), 1) * dur;
+    }
+  }, [dur]);
+
+  useEffect(() => () => {
+    clearWatchdog();
+    audioRef.current?.pause();
+  }, [clearWatchdog]);
+
+  return { engine, playing, loading, time, dur, press, goHero, seek, heroRef, phantomRef };
 }
 
-/* ---------- iconos ---------- */
+/* =============== barra superior (siempre visible) =============== */
 
-const PlayIcon = ({ className = "" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-    <path d="M8 5.5v13l11-6.5z" />
-  </svg>
-);
-const PauseIcon = ({ className = "" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-    <path d="M7 5h3.6v14H7zM13.4 5H17v14h-3.6z" />
-  </svg>
-);
-const StopIcon = ({ className = "" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-    <path d="M7 7h10v10H7z" />
-  </svg>
-);
+export function TopPlayerBar({ p }: { p: Podcast }) {
+  const pct = p.dur > 0 ? Math.min(100, (p.time / p.dur) * 100) : 0;
+  const internal = p.engine === "phantom";
 
-/* ---------- vinilo ---------- */
+  const label = internal
+    ? "IR AL REPRODUCTOR"
+    : p.loading
+      ? "CONECTANDO…"
+      : p.playing
+        ? "PAUSAR"
+        : "REPRODUCIR";
 
-function Vinyl({ spinning }: { spinning: boolean }) {
   return (
-    <svg viewBox="0 0 200 200" className="w-40 h-40 sm:w-52 sm:h-52" aria-hidden="true">
-      <circle cx="100" cy="100" r="96" fill="#14213d" />
-      <circle cx="100" cy="100" r="96" fill="none" stroke="#0a1226" strokeWidth="3" />
-      {[80, 68, 56, 44].map((r) => (
-        <circle key={r} cx="100" cy="100" r={r} fill="none" stroke="#22345c" strokeWidth="1.6" />
-      ))}
-      <g className={spinning ? "spin-vinyl" : ""}>
-        <circle cx="100" cy="100" r="34" fill="#d0311f" />
-        <circle cx="100" cy="100" r="34" fill="none" stroke="#14213d" strokeWidth="3" />
-        <path d="M100 66a34 34 0 0 1 34 34" fill="none" stroke="#f5a800" strokeWidth="4" strokeLinecap="round" />
-        <text x="100" y="96" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="13" fill="#fff">
-          MJRV
-        </text>
-        <text x="100" y="112" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="13" fill="#fff">
-          2027
-        </text>
-        <circle cx="100" cy="100" r="5" fill="#14213d" />
-      </g>
-    </svg>
-  );
-}
+    <div className="sticky top-0 z-[70] bg-navy text-white border-b-[3px] border-ink shadow-[0_4px_0_rgba(20,33,61,0.25)]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 h-12 flex items-center gap-3 sm:gap-5">
+        <button
+          onClick={internal ? p.goHero : p.press}
+          aria-label={internal ? "Ir al reproductor de la cabina" : p.playing ? "Pausar podcast" : "Reproducir podcast"}
+          className={`w-9 h-9 shrink-0 border-2 border-white/70 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:border-white ${
+            p.playing ? "bg-yellow text-navy" : "bg-red text-white"
+          }`}
+        >
+          {internal ? (
+            <svg viewBox="0 0 16 16" className="w-4 h-4" aria-hidden="true">
+              <path d="M8 2v9M4 7.5 8 12l4-4.5M3 14h10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : p.playing ? (
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" aria-hidden="true">
+              <path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" aria-hidden="true">
+              <path d="M4 2.2v11.6L13.6 8z" fill="currentColor" />
+            </svg>
+          )}
+        </button>
 
-/* ---------- forma de onda ---------- */
+        <div className={`hidden sm:flex items-end gap-[3px] h-6 ${p.playing ? "" : "eq-paused"}`} aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => (
+            <span key={i} className="eq-bar w-[4px] bg-yellow" style={{ height: `${100}%`, animationDuration: `${0.7 + i * 0.13}s` }} />
+          ))}
+        </div>
 
-function Waveform({
-  bars,
-  frac,
-  live,
-  onSeek,
-}: {
-  bars: number[];
-  frac: number;
-  live: boolean;
-  onSeek: (f: number) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const click = (e: ReactMouseEvent<HTMLDivElement>) => {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    onSeek(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)));
-  };
-  return (
-    <div
-      ref={ref}
-      onClick={click}
-      role="slider"
-      aria-label="Posición del audio"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(frac * 100)}
-      className={`flex items-end gap-[3px] h-16 cursor-pointer select-none ${live ? "wf-live" : ""}`}
-    >
-      {bars.map((h, i) => {
-        const played = i / bars.length <= frac;
-        return (
-          <span
-            key={i}
-            className={`wf-bar flex-1 min-w-[3px] rounded-sm transition-colors duration-200 ${
-              played ? "bg-red" : "bg-blue-mid/60"
-            }`}
-            style={{ height: `${h * 100}%`, animationDelay: `${(i % 8) * 0.07}s` }}
-          />
-        );
-      })}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[12px] sm:text-[13px] font-extrabold uppercase tracking-[0.12em] leading-none">
+            Podcast: El manual de supervivencia para el MJRV 2027
+          </p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 leading-none">
+            {internal
+              ? "Audio interno · toca play en la cabina"
+              : p.loading
+                ? "Conectando con Drive…"
+                : p.playing
+                  ? "Sonando — sigue leyendo la guía"
+                  : "Listo para reproducir"}
+          </p>
+        </div>
+
+        <span className="font-display text-sm sm:text-base tabular-nums text-yellow shrink-0">
+          {fmt(p.time)} <span className="text-white/50">/ {fmt(p.dur)}</span>
+        </span>
+      </div>
+      <div className="h-[4px] bg-white/15">
+        <div className="h-full bg-red transition-[width] duration-300 ease-linear" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
 
-/* ---------- reproductor principal (cabina) ---------- */
+/* =============== cabina protagonista =============== */
 
 export function RadioHero({ p }: { p: Podcast }) {
-  const { mode, active, time, dur, toggle, seek, playerRef } = p;
-
-  const bars = useMemo(
-    () =>
-      Array.from({ length: 56 }, (_, i) => {
-        const v = Math.abs(Math.sin(i * 0.9) * 0.68 + Math.sin(i * 0.23 + 1.4) * 0.32);
-        return 0.22 + v * 0.78;
-      }),
+  const wave = useMemo(
+    () => Array.from({ length: 64 }, (_, i) => 18 + Math.round(52 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21)))),
     []
   );
+  const frac = p.dur > 0 ? p.time / p.dur : 0;
+  const internal = p.engine === "phantom";
 
-  const frac = dur > 0 ? Math.min(1, time / dur) : 0;
-  const embedOn = mode === "embed" && active;
-
-  const btnIcon =
-    mode === "loading" ? (
-      <span className="block w-7 h-7 border-[3px] border-white/40 border-t-white rounded-full animate-spin" />
-    ) : active ? (
-      mode === "embed" ? (
-        <StopIcon className="w-8 h-8" />
-      ) : (
-        <PauseIcon className="w-8 h-8" />
-      )
-    ) : (
-      <PlayIcon className="w-8 h-8 translate-x-[2px]" />
-    );
-
-  const btnLabel =
-    mode === "loading"
-      ? "Conectando…"
-      : mode === "embed"
-        ? active
-          ? "Detener"
-          : "Abrir reproductor"
-        : active
-          ? "Pausar"
-          : mode === "custom"
-            ? "Reanudar"
-            : "Reproducir";
-
-  const hint =
-    mode === "idle"
-      ? "Pulsa reproducir y escúchalo mientras recorres la guía."
-      : mode === "loading"
-        ? "Buscando el audio…"
-        : mode === "custom"
-          ? active
-            ? "Sonando — sigue leyendo, aquí no se detiene."
-            : "En pausa. Pulsa para continuar."
-          : embedOn
-            ? "Se abrió el reproductor integrado: pulsa play dentro de él. «Detener» lo cierra."
-            : "Pulsa para abrir el reproductor integrado.";
+  const bigLabel = p.loading ? "CONECTANDO…" : p.playing ? "PAUSAR" : "REPRODUCIR";
 
   return (
     <section
-      ref={playerRef}
-      className="relative border-b-[3px] border-ink bg-navy text-white overflow-hidden"
+      ref={p.heroRef as RefObject<HTMLElement>}
+      id="podcast"
+      className="relative bg-navy text-white border-b-[3px] border-ink overflow-hidden"
     >
-      <div className="absolute inset-0 dots-bg opacity-[0.12] pointer-events-none" />
-      <span
-        aria-hidden="true"
-        className="font-display absolute -right-8 -top-10 text-[200px] sm:text-[280px] leading-none text-white opacity-[0.05] select-none"
-      >
-        POD
-      </span>
+      <div className="absolute inset-0 dots-bg opacity-[0.25] pointer-events-none" />
+      <div className="absolute -right-20 -top-24 w-72 h-72 rounded-full border-[3px] border-white/10 pointer-events-none" />
+      <div className="absolute -right-8 -top-10 w-44 h-44 rounded-full border-[3px] border-white/10 pointer-events-none" />
 
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16 grid lg:grid-cols-[auto_1fr] gap-10 items-center">
-        {/* vinilo + ON AIR */}
-        <div className="relative justify-self-center lg:justify-self-start">
-          <Vinyl spinning={active && mode !== "embed"} />
-          <span
-            className={`absolute -top-2 -right-4 font-display text-sm tracking-[0.18em] px-3 py-1 border-2 border-ink text-ink bg-yellow shadow-[4px_4px_0_rgba(0,0,0,0.35)] ${
-              active ? "blink-soft" : "opacity-60"
-            }`}
-          >
-            {active ? "ON AIR" : "STANDBY"}
-          </span>
-        </div>
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 pt-12 sm:pt-16 pb-12">
+        <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+          {/* texto */}
+          <div className="lg:col-span-7">
+            <RevealInline>
+              <p className="kicker flex items-center gap-3 text-yellow">
+                <span className="inline-block w-10 h-[3px] bg-yellow" />
+                Audio de bolsillo · Escúchalo mientras lees
+              </p>
+            </RevealInline>
+            <h1 className="mt-4 font-display uppercase leading-[0.94] text-4xl sm:text-6xl xl:text-[72px]">
+              El manual de
+              <br />
+              supervivencia
+              <br />
+              <span className="text-yellow">para el MJRV 2027</span>
+            </h1>
+            <p className="mt-5 text-white/80 font-medium text-lg sm:text-xl max-w-xl leading-snug">
+              Las cuatro etapas de la jornada — instalación, votación, escrutinio y embalaje — contadas al oído,
+              para repasar con las manos libres mientras tu mesa abre, cuenta y sella.
+            </p>
 
-        <div>
-          <p className="kicker text-yellow flex items-center gap-3">
-            <span className="inline-block w-10 h-[3px] bg-yellow" />
-            El podcast de la jornada
-          </p>
-          <h2 className="mt-3 font-display uppercase leading-[0.95] text-[38px] sm:text-[54px] xl:text-[64px]">
-            El manual de <span className="text-yellow">supervivencia</span>
-            <br />
-            para el MJRV <span className="text-red">2027</span>
-          </h2>
-          <p className="mt-4 text-base sm:text-lg font-medium text-white/80 max-w-2xl">
-            Todo lo que necesitas saber de la instalación, el sufragio y el escrutinio — contado para que lo escuches
-            mientras repasas esta guía.
-          </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <span className="border-2 border-white/40 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em]">
+                EP. 01 · Temporada electoral
+              </span>
+              <span className="border-2 border-white/40 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${p.playing ? "bg-red blink-soft" : "bg-white/40"}`} />
+                {p.playing ? "Al aire" : "En cabina"}
+              </span>
+            </div>
+          </div>
 
-          {/* tarjeta del reproductor */}
-          <div className="mt-7 border-[3px] border-ink bg-white text-ink shadow-[8px_8px_0_rgba(245,168,0,0.9)] p-5 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-5">
-              <button
-                onClick={toggle}
-                aria-label={btnLabel}
-                className={`shrink-0 w-20 h-20 rounded-full border-[3px] border-ink flex items-center justify-center text-white shadow-[5px_5px_0_rgba(20,33,61,0.9)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[7px_7px_0_rgba(20,33,61,0.9)] self-center sm:self-auto ${
-                  active && mode !== "embed"
-                    ? "bg-blue hover:bg-blue-mid"
-                    : embedOn
-                      ? "bg-red hover:bg-red-deep"
-                      : "bg-red hover:bg-red-deep"
+          {/* tocadiscos + botón */}
+          <div className="lg:col-span-5">
+            <div className="border-[3px] border-white/25 bg-white/[0.06] p-6 sm:p-8 relative">
+              <span
+                className={`absolute -top-3.5 right-6 font-display text-sm tracking-[0.2em] px-3 py-1 border-2 border-white bg-red text-white ${
+                  p.playing ? "blink-soft" : "opacity-70"
                 }`}
               >
-                {btnIcon}
-              </button>
+                ON AIR
+              </span>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-display text-lg sm:text-xl uppercase tracking-wide text-navy truncate">
-                    Podcast: El manual de supervivencia para el MJRV 2027
-                  </p>
-                  {mode === "custom" && (
-                    <p className="font-display text-sm text-ink-soft tabular-nums shrink-0">
-                      {fmt(time)} <span className="text-ink/40">/ {fmt(dur)}</span>
-                    </p>
-                  )}
+              <div className="flex items-center gap-6">
+                {/* vinilo */}
+                <div className="w-28 h-28 sm:w-32 sm:h-32 shrink-0 relative">
+                  <svg viewBox="0 0 120 120" className={`w-full h-full ${p.playing ? "spin-vinyl" : ""}`} aria-hidden="true">
+                    <circle cx="60" cy="60" r="57" fill="#0a1e47" stroke="#ffffff" strokeOpacity="0.35" strokeWidth="2" />
+                    <circle cx="60" cy="60" r="46" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
+                    <circle cx="60" cy="60" r="36" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
+                    <circle cx="60" cy="60" r="20" fill="#f5a800" stroke="#14213d" strokeWidth="2.4" />
+                    <circle cx="60" cy="60" r="4" fill="#14213d" />
+                    <path d="M60 12a48 48 0 0 1 34 14" fill="none" stroke="#ffffff" strokeOpacity="0.5" strokeWidth="2.4" strokeLinecap="round" />
+                  </svg>
+                  {/* brazo */}
+                  <svg
+                    viewBox="0 0 80 120"
+                    className={`absolute -right-7 -top-3 w-16 h-24 transition-transform duration-700 origin-top-right ${
+                      p.playing ? "rotate-[16deg]" : "rotate-[0deg]"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <line x1="66" y1="8" x2="30" y2="78" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+                    <circle cx="66" cy="8" r="7" fill="#f5a800" stroke="#14213d" strokeWidth="2" />
+                    <rect x="22" y="72" width="16" height="14" rx="2" fill="#f5a800" stroke="#14213d" strokeWidth="2" />
+                  </svg>
                 </div>
 
-                {embedOn ? (
-                  <div className="mt-3 border-[3px] border-ink overflow-hidden bg-paper-2">
+                {/* botón principal */}
+                <div
+                  onClick={p.press}
+                  className="relative w-32 h-32 sm:w-36 sm:h-36 mx-auto cursor-pointer select-none"
+                  role="button"
+                  aria-label={p.playing ? "Detener el podcast" : "Reproducir el podcast"}
+                >
+                  <span
+                    className={`absolute inset-0 border-[3px] border-white bg-red text-white flex flex-col items-center justify-center gap-1.5 transition-all duration-300 shadow-[7px_7px_0_rgba(0,0,0,0.4)] hover:shadow-[10px_10px_0_rgba(0,0,0,0.45)] hover:-translate-y-1 ${
+                      p.playing ? "bg-yellow text-navy" : ""
+                    } ${p.loading ? "blink-soft" : ""}`}
+                  >
+                    {p.playing ? (
+                      <svg viewBox="0 0 16 16" className="w-9 h-9" aria-hidden="true">
+                        <path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 16 16" className="w-9 h-9" aria-hidden="true">
+                        <path d="M4 2.2v11.6L13.6 8z" fill="currentColor" />
+                      </svg>
+                    )}
+                    <span className="font-display text-lg tracking-[0.14em] leading-none">{bigLabel}</span>
+                  </span>
+
+                  {/* reproductor interno de Drive: invisible, calzado sobre el botón */}
+                  <div
+                    className={`absolute -inset-2 z-20 ${internal ? "pointer-events-auto" : "pointer-events-none"}`}
+                    aria-hidden="true"
+                  >
                     <iframe
-                      src={EMBED_URL}
-                      title="Reproductor de audio — Podcast MJRV 2027"
-                      className="w-full h-[110px] block"
-                      frameBorder="0"
+                      ref={p.phantomRef}
+                      src={PREVIEW_URL}
+                      title="Reproductor interno de audio"
+                      className="w-full h-full opacity-0 border-0"
                       allow="autoplay"
+                      loading="lazy"
                     />
                   </div>
-                ) : (
-                  <div className="mt-3">
-                    <Waveform bars={bars} frac={frac} live={mode === "custom" && active} onSeek={seek} />
-                  </div>
-                )}
+                </div>
+              </div>
 
-                <p className="mt-2.5 text-[13px] font-semibold text-ink-soft">{hint}</p>
+              {/* forma de onda */}
+              <Waveform wave={wave} frac={frac} playing={p.playing} engine={p.engine} seek={p.seek} />
+
+              <div className="mt-4 flex items-center justify-between text-[12px] font-extrabold uppercase tracking-[0.18em] text-white/60">
+                <span className="tabular-nums text-white/90">{fmt(p.time)}</span>
+                <span>
+                  {internal
+                    ? "El botón reproduce el audio internamente desde Drive"
+                    : p.loading
+                      ? "Conectando con Google Drive…"
+                      : p.playing
+                        ? "Sonando — desliza para seguir leyendo"
+                        : "Pulsa reproducir y sigue leyendo la guía"}
+                </span>
+                <span className="tabular-nums text-white/90">{fmt(p.dur)}</span>
               </div>
             </div>
           </div>
@@ -431,69 +428,54 @@ export function RadioHero({ p }: { p: Podcast }) {
   );
 }
 
-/* ---------- barra superior (misma única fuente) ---------- */
+/* forma de onda: viva mientras suena; permite saltar de minuto en reproducción directa */
+function Waveform({
+  wave, frac, playing, engine, seek,
+}: {
+  wave: number[];
+  frac: number;
+  playing: boolean;
+  engine: Engine;
+  seek: (frac: number) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const clickable = engine === "direct";
 
-export function TopPlayerBar({ p }: { p: Podcast }) {
-  const { mode, active, time, dur, goPlay } = p;
-  const label =
-    mode === "loading"
-      ? "Conectando…"
-      : active
-        ? mode === "embed"
-          ? "Sonando · Detener"
-          : "Sonando · Pausar"
-        : "Escuchar el podcast";
+  const click = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!clickable || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    seek((e.clientX - r.left) / r.width);
+  };
+
   return (
-    <div className="sticky top-0 z-[70] bg-ink text-white border-b-[3px] border-ink">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 flex items-center justify-between gap-4 py-2">
-        <button
-          onClick={goPlay}
-          className="flex items-center gap-3 group min-w-0"
-          aria-label="Escuchar el podcast"
-        >
+    <div
+      ref={ref}
+      onClick={click}
+      className={`mt-6 flex items-end gap-[3px] h-20 ${playing ? "wf-live" : ""} ${
+        clickable ? "cursor-pointer" : ""
+      }`}
+      aria-hidden="true"
+    >
+      {wave.map((h, i) => {
+        const passed = frac > 0 && i / wave.length <= frac;
+        return (
           <span
-            className={`w-9 h-9 shrink-0 rounded-full border-2 border-white/80 flex items-center justify-center transition-colors duration-300 ${
-              active ? "bg-red" : "bg-yellow text-ink group-hover:bg-white"
-            }`}
-          >
-            {active ? <PauseIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4 translate-x-[1px]" />}
-          </span>
-          <span className="min-w-0">
-            <span className="kicker block text-yellow">Podcast MJRV 2027</span>
-            <span className="block text-[13px] font-bold text-white/90 truncate">{label}</span>
-          </span>
-        </button>
-
-        {mode === "custom" && (
-          <span className="font-display text-sm text-white/80 tabular-nums shrink-0">
-            {fmt(time)} / {fmt(dur)}
-          </span>
-        )}
-        {active && (
-          <span className="hidden sm:flex items-end gap-[3px] h-5" aria-hidden="true">
-            {[0, 1, 2, 3].map((i) => (
-              <span key={i} className="eq-bar w-[4px] h-full bg-yellow" style={{ animationDelay: `${i * 0.12}s` }} />
-            ))}
-          </span>
-        )}
-      </div>
-      {/* progreso de lectura */}
-      <ReadingProgress />
+            key={i}
+            className="wf-bar flex-1 rounded-[1px] transition-colors duration-300"
+            style={{
+              height: `${h}%`,
+              backgroundColor: passed ? "#d0311f" : playing ? "#f5a800" : "rgba(255,255,255,0.35)",
+              animationDelay: `${(i % 10) * 0.06}s`,
+              animationDuration: `${0.7 + (i % 5) * 0.09}s`,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
 
-function ReadingProgress() {
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    const onScroll = () => {
-      const h = document.documentElement;
-      const total = h.scrollHeight - h.clientHeight;
-      setW(total > 0 ? (h.scrollTop / total) * 100 : 0);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  return <div className="h-[4px] bg-red" style={{ width: `${w}%` }} />;
+/* revelado del kicker de la cabina */
+function RevealInline({ children }: { children: ReactNode }) {
+  return <Reveal>{children}</Reveal>;
 }
