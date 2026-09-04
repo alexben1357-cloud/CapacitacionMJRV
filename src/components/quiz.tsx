@@ -45,14 +45,59 @@ function buildSession(): Slot[] {
   return shuffle([...mcs, ...dyns]);
 }
 
-const verdicts = (score: number) =>
-  score >= 9
-    ? { stamp: "PRESIDENTE DE MESA", note: "Dominio total de la jornada: actas, sobres y palotes no tienen secretos para ti." }
-    : score >= 7
-      ? { stamp: "VOCAL APLICADO", note: "Buen escrutinio mental. Repasa los pasos que fallaste y quedas listo." }
-      : score >= 5
-        ? { stamp: "SECRETARIO EN PRÁCTICAS", note: "Vas por buen camino, pero la guía te espera arriba para el repaso." }
-        : { stamp: "A RELEER LA GUÍA", note: "Vuelve al inicio, lee las cuatro etapas con calma y reintenta el examen." };
+/* categorías según aciertos (sobre 10) */
+type Tone = "gold" | "blue" | "ink" | "red";
+interface Tier {
+  stamp: string;
+  tag: string;
+  note: string;
+  tone: Tone;
+  winner?: boolean;
+}
+
+const tierFor = (score: number): Tier =>
+  score >= 10
+    ? {
+        stamp: "Presidente de mesa",
+        tag: "¡Ganador!",
+        note: "10 de 10: dominio total de la jornada. La mesa está en tus manos.",
+        tone: "gold",
+        winner: true,
+      }
+    : score === 9
+      ? {
+          stamp: "Secretario de la JRV",
+          tag: "Casi perfecto",
+          note: "9 de 10: un repaso fino y llegas a la presidencia de la mesa.",
+          tone: "blue",
+        }
+      : score >= 7
+        ? {
+            stamp: "Segundo vocal",
+            tag: "Sigue estudiando",
+            note: "7–8 de 10: buena base; refuerza las etapas con la guía de arriba.",
+            tone: "ink",
+          }
+        : score >= 5
+          ? {
+              stamp: "Tercer vocal",
+              tag: "Sigue estudiando",
+              note: "5–6 de 10: vas encaminado, pero la jornada todavía te exige más repaso.",
+              tone: "ink",
+            }
+          : score >= 2
+            ? {
+                stamp: "Elector",
+                tag: "Te hace falta capacitación",
+                note: "Menos de 5 de 10: como elector cumples, pero como MJRV necesitas capacitación.",
+                tone: "red",
+              }
+            : {
+                stamp: "Fuera de las elecciones",
+                tag: "Te hace falta capacitación",
+                note: "Menos de 2 de 10: vuelve a leer la guía completa y reintenta el examen.",
+                tone: "red",
+              };
 
 export function Quiz() {
   const [session, setSession] = useState<Slot[]>(() => buildSession());
@@ -110,7 +155,7 @@ export function Quiz() {
     setFinished(false);
   };
 
-  const v = verdicts(score);
+  const tier = tierFor(score);
 
   return (
     <section id="quiz" className="relative border-t-[3px] border-ink bg-white overflow-hidden">
@@ -278,20 +323,90 @@ export function Quiz() {
               </div>
             </div>
           ) : (
-            /* resultado final */
-            <div className="border-[3px] border-ink bg-white shadow-[10px_10px_0_rgba(20,33,61,0.9)] px-5 sm:px-7 py-10 sm:py-14 text-center">
-              <p className="kicker text-ink-soft">Escrutinio terminado · Resultado del simulacro</p>
-              <p className="mt-6 font-display leading-none text-ink">
-                <span className="text-[96px] sm:text-[140px] text-blue">{score}</span>
+            /* resultado final · categoría del participante */
+            <div
+              className={`relative overflow-hidden border-[3px] border-ink px-5 sm:px-7 py-10 sm:py-14 text-center ${
+                tier.tone === "gold"
+                  ? "bg-yellow shadow-[10px_10px_0_rgba(208,49,31,0.9)]"
+                  : "bg-white shadow-[10px_10px_0_rgba(20,33,61,0.9)]"
+              }`}
+            >
+              {/* estrellas de celebración para el ganador */}
+              {tier.winner && (
+                <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+                  {(
+                    [
+                      ["6%", "12%", "w-6", "rotate-12", "#d0311f", "0s"],
+                      ["14%", "74%", "w-5", "-rotate-12", "#1d4fc4", "0.4s"],
+                      ["88%", "16%", "w-8", "-rotate-6", "#d0311f", "0.2s"],
+                      ["82%", "70%", "w-6", "rotate-45", "#1d4fc4", "0.6s"],
+                      ["50%", "6%", "w-5", "rotate-6", "#1d4fc4", "0.8s"],
+                    ] as Array<[string, string, string, string, string, string]>
+                  ).map(([top, left, w, rot, fill, delay], i) => (
+                    <svg
+                      key={i}
+                      viewBox="0 0 16 16"
+                      className={`absolute ${w} ${rot} blink-soft`}
+                      style={{ top, left, animationDelay: delay }}
+                    >
+                      <path d="M8 0l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill={fill} stroke="#14213d" strokeWidth="0.8" />
+                    </svg>
+                  ))}
+                </div>
+              )}
+
+              {tier.winner && (
+                <div className="inline-flex items-center gap-3 font-display text-xl sm:text-2xl tracking-[0.18em] uppercase text-ink bg-white border-[3px] border-ink px-6 py-2 rotate-[-2deg] shadow-[6px_6px_0_rgba(20,33,61,0.9)]">
+                  <svg viewBox="0 0 16 16" className="w-5 h-5" aria-hidden="true">
+                    <path d="M8 0l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#d0311f" stroke="#14213d" strokeWidth="0.8" />
+                  </svg>
+                  {tier.tag}
+                  <svg viewBox="0 0 16 16" className="w-5 h-5" aria-hidden="true">
+                    <path d="M8 0l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#d0311f" stroke="#14213d" strokeWidth="0.8" />
+                  </svg>
+                </div>
+              )}
+
+              <p className={`kicker mt-6 ${tier.winner ? "text-ink/70" : "text-ink-soft"}`}>
+                Escrutinio terminado · Tu categoría
+              </p>
+              <p className="mt-5 font-display leading-none text-ink">
+                <span
+                  className={`text-[96px] sm:text-[140px] ${
+                    tier.tone === "gold" || tier.tone === "red" ? "text-red" : "text-blue"
+                  }`}
+                >
+                  {score}
+                </span>
                 <span className="text-4xl sm:text-6xl text-ink/40"> / {TOTAL}</span>
               </p>
               <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.2em] text-ink-soft">
                 Aciertos a la primera · teoría + práctica
               </p>
-              <div className="mt-8 inline-block font-display text-2xl sm:text-3xl tracking-[0.12em] uppercase text-red border-4 border-red px-6 py-2.5 bg-white shadow-[7px_7px_0_rgba(208,49,31,0.35)]">
-                {v.stamp}
+
+              <div
+                className={`mt-8 inline-block font-display text-2xl sm:text-3xl tracking-[0.12em] uppercase px-6 py-2.5 rotate-[-1.5deg] border-4 ${
+                  tier.tone === "gold"
+                    ? "bg-red text-white border-ink shadow-[7px_7px_0_rgba(20,33,61,0.9)]"
+                    : tier.tone === "blue"
+                      ? "bg-blue text-white border-ink shadow-[7px_7px_0_rgba(20,33,61,0.55)]"
+                      : tier.tone === "ink"
+                        ? "bg-white text-ink border-ink shadow-[7px_7px_0_rgba(20,33,61,0.35)]"
+                        : "bg-red text-white border-ink shadow-[7px_7px_0_rgba(208,49,31,0.4)]"
+                }`}
+              >
+                {tier.stamp}
               </div>
-              <p className="mt-6 text-lg font-medium text-ink-soft max-w-xl mx-auto">{v.note}</p>
+
+              <p
+                className={`mt-4 font-display text-sm sm:text-base tracking-[0.2em] uppercase ${
+                  tier.tone === "red" ? "text-red" : tier.tone === "gold" ? "text-ink/80" : "text-ink-soft"
+                }`}
+              >
+                ( {tier.tag} )
+              </p>
+              <p className="mt-4 text-lg font-medium text-ink-soft max-w-xl mx-auto">{tier.note}</p>
+
               <div className="mt-9 flex flex-wrap justify-center gap-4">
                 <button
                   onClick={restart}
