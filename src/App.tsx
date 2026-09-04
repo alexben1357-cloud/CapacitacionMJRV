@@ -240,9 +240,9 @@ export default function App() {
 
       {/* ---------- masthead ---------- */}
       <div className="border-b-2 border-ink bg-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 flex items-center justify-between py-2 text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-ink-soft">
-          <span>Edición especial · Material informativo para MJRV</span>
-          <span className="hidden sm:block">Ecuador · Domingo de elecciones 2027</span>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-0.5 py-1.5 text-[9.5px] sm:text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-soft/90 leading-relaxed">
+          <span>No es un sitio oficial del Consejo Nacional Electoral · Fines didácticos y de capacitación para MJRV</span>
+          <span>El uso de este material implica la aceptación de confidencialidad de la información</span>
         </div>
       </div>
       <div className="bg-red border-b-[3px] border-ink">
@@ -251,7 +251,7 @@ export default function App() {
             El manual de la JRV
           </a>
           <span className="text-white/90 text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-right">
-            Guía visual <span className="hidden sm:inline">· Sin logos oficiales</span>
+            Elecciones Seccionales y CPCCS <span className="hidden sm:inline">· Ecuador 2027</span>
           </span>
         </div>
       </div>
@@ -306,7 +306,7 @@ export default function App() {
                 <div className="ink-frame bg-white paper-edge relative z-10 transition-transform duration-500">
                   <CoverArt className="w-full h-auto block" />
                   <p className="border-t-[3px] border-ink px-4 py-2.5 text-sm italic font-medium text-ink-soft bg-paper-2">
-                    Ilustración 01 — El instante decisivo: la papeleta deja la mano y la urna hace su trabajo.
+                    El instante decisivo: la papeleta deja la mano, entra a la urna y el voto es secreto y personal.
                   </p>
                 </div>
               </Reveal>
@@ -656,10 +656,11 @@ export default function App() {
               </ul>
             </div>
             <div>
-              <h4 className="kicker text-yellow mb-4">Colofón</h4>
-              <p className="text-sm leading-relaxed text-white/75 font-medium">
-                Documento informativo de referencia ciudadana. No utiliza logos ni símbolos oficiales de ninguna institución.
-                Compuesto en Anton y Archivo, con ilustraciones editoriales propias de trazo y tramado.
+              <h4 className="kicker text-yellow mb-4">Aviso</h4>
+              <p className="text-[11px] leading-relaxed text-white/65 font-medium">
+                Este no es un sitio oficial del Consejo Nacional Electoral; es únicamente de fines didácticos y de
+                capacitación para Miembros de la Junta Receptora del Voto (MJRV). El uso del mismo implica la
+                aceptación de confidencialidad de la información.
               </p>
             </div>
           </div>
@@ -672,6 +673,10 @@ export default function App() {
               Elecciones Seccionales y CPCCS
             </span>
           </div>
+          <p className="mt-3 text-[9.5px] uppercase tracking-[0.1em] text-white/40 font-semibold">
+            No es un sitio oficial del Consejo Nacional Electoral · Fines didácticos y de capacitación para MJRV · Su uso implica la
+            aceptación de confidencialidad de la información
+          </p>
         </div>
       </footer>
     </div>
