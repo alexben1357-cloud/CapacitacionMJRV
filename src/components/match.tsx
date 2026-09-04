@@ -114,6 +114,61 @@ function PaqueteSvg() {
   );
 }
 
+function PadronSvg() {
+  return (
+    <svg viewBox="0 0 150 190" className="h-full w-auto mx-auto" role="img" aria-label="Padrón electoral">
+      <rect x="8" y="6" width="134" height="178" fill="#ffffff" {...s2} />
+      <rect x="8" y="6" width="134" height="26" fill="#1d4fc4" stroke={INK} strokeWidth="2" />
+      <text x="75" y="25" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="13" fill="#ffffff">
+        PADRÓN ELECTORAL
+      </text>
+      {[52, 78, 104, 130, 156].map((y) => (
+        <g key={y}>
+          <rect x="18" y={y - 8} width="14" height="14" fill="#ffffff" stroke={INK} strokeWidth="1.6" />
+          <path d={`m21 ${y - 2} 3 3 6-7`} fill="none" stroke="#1d4fc4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <line x1="40" y1={y} x2="96" y2={y} stroke={INK} strokeWidth="1.6" opacity="0.4" />
+          <rect x="104" y={y - 7} width="30" height="12" fill="#dce8fb" stroke={INK} strokeWidth="1.4" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function InsumosSvg() {
+  return (
+    <svg viewBox="0 0 150 190" className="h-full w-auto mx-auto" role="img" aria-label="Insumos de la mesa">
+      <rect x="8" y="6" width="134" height="178" fill="#ffffff" {...s2} />
+      <text x="75" y="30" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="13" fill={INK}>
+        INSUMOS DE MESA
+      </text>
+      {/* almohadilla dactilar */}
+      <rect x="20" y="46" width="48" height="30" fill="#0f2b66" stroke={INK} strokeWidth="2" />
+      <rect x="20" y="46" width="48" height="9" fill="#1d4fc4" />
+      <text x="44" y="68" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="8" fill="#ffffff">
+        ALMOHADILLA
+      </text>
+      {/* cera dactilar */}
+      <circle cx="104" cy="61" r="16" fill="#f5a800" stroke={INK} strokeWidth="2" />
+      <circle cx="104" cy="61" r="7" fill="#c77f00" />
+      {/* esferográfico */}
+      <g transform="rotate(-30 45 110)">
+        <rect x="18" y="106" width="52" height="8" fill="#1d4fc4" stroke={INK} strokeWidth="1.8" />
+        <polygon points="70,106 82,110 70,114" fill="#f5a800" stroke={INK} strokeWidth="1.6" />
+      </g>
+      {/* linterna */}
+      <g transform="rotate(20 105 115)">
+        <rect x="92" y="104" width="30" height="12" rx="3" fill="#8a93a6" stroke={INK} strokeWidth="1.8" />
+        <rect x="122" y="101" width="9" height="18" fill="#f5a800" stroke={INK} strokeWidth="1.6" />
+      </g>
+      {/* sello en blanco */}
+      <rect x="42" y="140" width="66" height="22" fill="#dce8fb" stroke={INK} strokeWidth="2" />
+      <text x="75" y="155" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="9" fill="#0f2b66">
+        SELLO EN BLANCO
+      </text>
+    </svg>
+  );
+}
+
 /* ---------- sobres ---------- */
 
 function SobreSvg({ code, body, lid, inkOn }: { code: string; body: string; lid: string; inkOn: string }) {
@@ -159,9 +214,9 @@ export interface DynamicSpec {
 export const DYNAMICS: DynamicSpec[] = [
   {
     id: "t1",
-    title: "Acta de escrutinio de alcalde, firmada y sellada",
-    desc: "Su franja lateral es amarilla: es un acta de transmisión. Llévala a su sobre.",
-    item: { id: "actaT1", name: "Acta T1 · Alcalde", svg: "actaT1" },
+    title: "Acta de escrutinio de Alcaldesa/Alcalde (T1), firmada y sellada",
+    desc: "Su franja lateral es amarilla: es de transmisión y se entrega al Coordinador/a de Mesa.",
+    item: { id: "actaT1", name: "Acta T1 · Alcaldía", svg: "actaT1" },
     targets: [
       { accepts: "actaT1", label: "Sobre amarillo T1", svg: "sobreT1" },
       { accepts: "__x__", label: "Sobre rojo P1", svg: "sobreP1" },
@@ -192,12 +247,12 @@ export const DYNAMICS: DynamicSpec[] = [
   },
   {
     id: "borrador",
-    title: "Borrador de escrutinio con la cuadrícula de palotes",
-    desc: "Franja lateral gris: no va a ningún sobre, tiene un destino directo.",
+    title: "Borradores de escrutinio con la cuadrícula de palotes",
+    desc: "Franja lateral gris: se guardan dentro del sobre rojo P1, junto a las actas P1 de todas las dignidades.",
     item: { id: "borrador", name: "Borrador de escrutinio", svg: "borrador" },
     targets: [
-      { accepts: "borrador", label: "Paquete electoral", svg: "paquete" },
-      { accepts: "__x__", label: "Sobre rojo P1", svg: "sobreP1" },
+      { accepts: "borrador", label: "Sobre rojo P1", svg: "sobreP1" },
+      { accepts: "__x__", label: "Paquete electoral", svg: "paquete" },
       { accepts: "__x__", label: "Sobre amarillo T1", svg: "sobreT1" },
     ],
   },
@@ -207,8 +262,8 @@ export const DYNAMICS: DynamicSpec[] = [
     desc: "Se rompieron parcialmente al cierre de la votación. ¿A qué sobre van?",
     item: { id: "mutiladas", name: "Papeletas no utilizadas", svg: "mutiladas" },
     targets: [
-      { accepts: "mutiladas", label: "Sobre naranja P2", svg: "sobreP2" },
-      { accepts: "__x__", label: "Sobre granate P3", svg: "sobreP3" },
+      { accepts: "mutiladas", label: "Sobre rojo P2", svg: "sobreP2" },
+      { accepts: "__x__", label: "Sobre rojo P3", svg: "sobreP3" },
       { accepts: "__x__", label: "Sobre azul C2", svg: "sobreC2" },
     ],
   },
@@ -218,19 +273,41 @@ export const DYNAMICS: DynamicSpec[] = [
     desc: "Ya escrutadas y clasificadas por dignidad. Dales su sobre del paquete.",
     item: { id: "usadas", name: "Papeletas utilizadas", svg: "usadas" },
     targets: [
-      { accepts: "usadas", label: "Sobre granate P3", svg: "sobreP3" },
-      { accepts: "__x__", label: "Sobre naranja P2", svg: "sobreP2" },
+      { accepts: "usadas", label: "Sobre rojo P3", svg: "sobreP3" },
+      { accepts: "__x__", label: "Sobre rojo P2", svg: "sobreP2" },
       { accepts: "__x__", label: "Sobre amarillo T1", svg: "sobreT1" },
     ],
   },
   {
     id: "c1",
     title: "Acta de instalación C1, con franja lateral azul",
-    desc: "Resguardo legal de la mesa: viaja al Centro de Procesamiento Electoral.",
+    desc: "Va junto con el listado de materiales, el talonario de certificados y el formulario de recibo: al sobre C1 para el CPE.",
     item: { id: "actaC1", name: "Acta C1 · Instalación", svg: "actaC1" },
     targets: [
       { accepts: "actaC1", label: "Sobre azul C1", svg: "sobreC1" },
       { accepts: "__x__", label: "Sobre azul C3", svg: "sobreC3" },
+      { accepts: "__x__", label: "Sobre amarillo T1", svg: "sobreT1" },
+    ],
+  },
+  {
+    id: "padron",
+    title: "El padrón electoral usado y firmado en la mesa",
+    desc: "Es el registro de quienes sufragaron. Se guarda para el Centro de Procesamiento Electoral.",
+    item: { id: "padron", name: "Padrón electoral", svg: "padron" },
+    targets: [
+      { accepts: "padron", label: "Sobre azul C2", svg: "sobreC2" },
+      { accepts: "__x__", label: "Sobre azul C1", svg: "sobreC1" },
+      { accepts: "__x__", label: "Sobre rojo P1", svg: "sobreP1" },
+    ],
+  },
+  {
+    id: "insumos",
+    title: "Almohadilla, cera, esferos, botones, linterna y sello “En Blanco”",
+    desc: "Son los insumos de escritorio de la mesa. Tienen su propio sobre azul para el CPE.",
+    item: { id: "insumos", name: "Insumos de mesa", svg: "insumos" },
+    targets: [
+      { accepts: "insumos", label: "Sobre azul C3", svg: "sobreC3" },
+      { accepts: "__x__", label: "Sobre azul C2", svg: "sobreC2" },
       { accepts: "__x__", label: "Sobre amarillo T1", svg: "sobreT1" },
     ],
   },
@@ -254,6 +331,10 @@ function DocSvg({ id }: { id: string }) {
       return <PapeletaSvg usada={false} />;
     case "usadas":
       return <PapeletaSvg usada />;
+    case "padron":
+      return <PadronSvg />;
+    case "insumos":
+      return <InsumosSvg />;
     default:
       return null;
   }
@@ -270,9 +351,9 @@ function TargetSvg({ id }: { id: string }) {
     case "sobreP1":
       return <SobreSvg code="P1" body={RD} lid="#a12415" inkOn="#ffffff" />;
     case "sobreP2":
-      return <SobreSvg code="P2" body="#f2762e" lid="#d95c12" inkOn="#ffffff" />;
+      return <SobreSvg code="P2" body={RD} lid="#a12415" inkOn="#ffffff" />;
     case "sobreP3":
-      return <SobreSvg code="P3" body="#8e3a30" lid="#6d2a22" inkOn="#ffffff" />;
+      return <SobreSvg code="P3" body={RD} lid="#a12415" inkOn="#ffffff" />;
     case "sobreC1":
       return <SobreSvg code="C1" body={BL} lid={BLN} inkOn="#ffffff" />;
     case "sobreC2":
@@ -289,10 +370,12 @@ function TargetSvg({ id }: { id: string }) {
 /* ---------- chips: código por franja lateral ---------- */
 
 const CHIPS: Array<[string, string]> = [
-  ["#f5a800", "Amarilla → sobre T"],
-  ["#d0311f", "Roja → sobre P1"],
-  ["#1d4fc4", "Azul → sobre C1"],
-  ["#8a93a6", "Gris → paquete"],
+  ["#f5a800", "Franja amarilla (actas T) → sobres T · Coordinador/a"],
+  ["#d0311f", "Franja roja (acta P1) → sobre rojo P1 · paquete"],
+  ["#8a93a6", "Franja gris (borradores) → sobre rojo P1"],
+  ["#1d4fc4", "Franja azul (acta C1) → sobre azul C1 · CPE"],
+  ["#1d4fc4", "Padrón → C2 · Insumos → C3 · CPE"],
+  ["#d0311f", "Mutiladas → P2 · Utilizadas → P3"],
 ];
 
 function Chuleta() {
@@ -312,12 +395,14 @@ function Chuleta() {
 }
 
 function FranjaHint({ item }: { item: DynItem }) {
-  if (item.svg.startsWith("actaT")) return <>Pista: franja <strong>amarilla</strong> → sobres T de transmisión.</>;
-  if (item.svg === "actaP1") return <>Pista: franja <strong>roja</strong> → sobre P1 del paquete.</>;
+  if (item.svg.startsWith("actaT")) return <>Pista: franja <strong>amarilla</strong> → sobres T de transmisión, al Coordinador/a de Mesa.</>;
+  if (item.svg === "actaP1") return <>Pista: franja <strong>roja</strong> → sobre P1 del paquete electoral.</>;
   if (item.svg === "actaC1") return <>Pista: franja <strong>azul</strong> → sobre C1 para el CPE.</>;
-  if (item.svg === "borrador") return <>Pista: franja <strong>gris</strong> → directo al paquete, sin sobre.</>;
-  if (item.svg === "mutiladas") return <>Pista: las no utilizadas van al sobre <strong>P2</strong>.</>;
-  return <>Pista: las utilizadas van al sobre <strong>P3</strong>.</>;
+  if (item.svg === "borrador") return <>Pista: franja <strong>gris</strong> → los borradores se guardan en el sobre <strong>rojo P1</strong>.</>;
+  if (item.svg === "mutiladas") return <>Pista: las papeletas no utilizadas (mutiladas) van al sobre <strong>P2</strong>.</>;
+  if (item.svg === "padron") return <>Pista: el padrón electoral va al sobre <strong>azul C2</strong>.</>;
+  if (item.svg === "insumos") return <>Pista: los insumos de escritorio van al sobre <strong>azul C3</strong>.</>;
+  return <>Pista: las papeletas utilizadas van al sobre <strong>P3</strong>.</>;
 }
 
 /* ---------- una dinámica individual ---------- */
