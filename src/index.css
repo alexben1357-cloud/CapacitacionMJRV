@@ -251,6 +251,19 @@ body {
   to { transform: scaleY(0.55); }
 }
 
+/* sacudida de respuesta incorrecta */
+.shake {
+  animation: shake-x 0.45s ease;
+}
+
+@keyframes shake-x {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
 /* scroll reveal */
 .reveal {
   opacity: 0;
@@ -343,6 +356,7 @@ body {
   .blink-soft,
   .eq-bar,
   .wf-bar,
+  .shake,
   .grain::after {
     animation: none !important;
   }

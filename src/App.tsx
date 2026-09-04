@@ -13,6 +13,7 @@ import {
   Reveal, MaskLines, Ticker, StageNav, useActiveSection, StepRow, Callout, SubHead,
 } from "./components/bits";
 import { usePodcast, TopPlayerBar, RadioHero } from "./components/audio";
+import { Quiz } from "./components/quiz";
 
 /* ================= metas de etapa ================= */
 
@@ -611,6 +612,9 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      {/* ---------- examen relámpago ---------- */}
+      <Quiz />
 
       {/* ---------- footer ---------- */}
       <footer className="bg-navy text-white border-t-[3px] border-ink relative overflow-hidden">
