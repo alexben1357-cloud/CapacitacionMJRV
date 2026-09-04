@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { QUESTION_BANK } from "../data/quiz";
 import { Reveal } from "./bits";
+import { MatchRound } from "./match";
 
-/* Examen relámpago del MJRV: 10 preguntas al azar del banco de 32.
-   Respuesta incorrecta → alerta roja en línea (sin sobreposición) e invitación a reintentar. */
+/* Examen relámpago del MJRV en dos rondas:
+   Ronda 1 → 10 preguntas de opción múltiple al azar.
+   Ronda 2 → 7 prácticas interactivas: arrastra cada acta hasta su sobre.
+   Respuesta incorrecta → alerta roja en línea (sin sobreposición) y reintento. */
 
 const LETTERS = ["A", "B", "C", "D"];
-const TOTAL = 10;
+const MC_TOTAL = 10;
+const MATCH_TOTAL = 7;
+const GRAND = MC_TOTAL + MATCH_TOTAL;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = arr.slice();
@@ -28,7 +33,7 @@ interface Round {
 
 function buildRound(): Round[] {
   return shuffle(QUESTION_BANK)
-    .slice(0, TOTAL)
+    .slice(0, MC_TOTAL)
     .map((item) => ({
       q: item.q,
       opts: shuffle(item.opts.map((text, i) => ({ text, correct: i === item.a }))),
@@ -36,22 +41,25 @@ function buildRound(): Round[] {
 }
 
 const verdicts = (score: number) =>
-  score >= 9
-    ? { stamp: "PRESIDENTE DE MESA", note: "Dominio total de la jornada: esta mesa está en buenas manos." }
-    : score >= 7
+  score >= 16
+    ? { stamp: "PRESIDENTE DE MESA", note: "Dominio total de la jornada: actas, sobres y palotes no tienen secretos para ti." }
+    : score >= 13
       ? { stamp: "VOCAL APLICADO", note: "Buen escrutinio mental. Repasa los pasos que fallaste y quedas listo." }
-      : score >= 5
+      : score >= 9
         ? { stamp: "SECRETARIO EN PRÁCTICAS", note: "Vas por buen camino, pero la guía te espera arriba para el repaso." }
         : { stamp: "A RELEER LA GUÍA", note: "Vuelve al inicio, lee las cuatro etapas con calma y reintenta el examen." };
 
+type Phase = "mc" | "match" | "done";
+
 export function Quiz() {
   const [round, setRound] = useState<Round[]>(() => buildRound());
+  const [phase, setPhase] = useState<Phase>("mc");
   const [idx, setIdx] = useState(0);
+  const [matchIdx, setMatchIdx] = useState(0);
   const [wrongPick, setWrongPick] = useState<number | null>(null);
   const [correctPick, setCorrectPick] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [attempts, setAttempts] = useState(0);
-  const [finished, setFinished] = useState(false);
   const alertRef = useRef<HTMLDivElement>(null);
 
   const q = round[Math.min(idx, round.length - 1)];
@@ -69,7 +77,7 @@ export function Quiz() {
       if (attempts === 0) setScore((s) => s + 1);
       window.setTimeout(() => {
         if (idx + 1 >= round.length) {
-          setFinished(true);
+          setPhase("match");
         } else {
           setIdx((v) => v + 1);
           setWrongPick(null);
@@ -85,15 +93,31 @@ export function Quiz() {
 
   const restart = () => {
     setRound(buildRound());
+    setPhase("mc");
     setIdx(0);
+    setMatchIdx(0);
     setWrongPick(null);
     setCorrectPick(null);
     setScore(0);
     setAttempts(0);
-    setFinished(false);
   };
 
   const v = verdicts(score);
+
+  /* progreso global: 17 segmentos (10 azules + 7 amarillos) */
+  const segState = (i: number) => {
+    if (i < MC_TOTAL) {
+      if (phase !== "mc") return "done-mc";
+      if (i < idx) return "done-mc";
+      if (i === idx) return "current";
+      return "todo";
+    }
+    const m = i - MC_TOTAL;
+    if (phase === "done") return "done-match";
+    if (phase === "match" && m < matchIdx) return "done-match";
+    if (phase === "match" && m === matchIdx) return "current";
+    return "todo";
+  };
 
   return (
     <section id="quiz" className="relative border-t-[3px] border-ink bg-white overflow-hidden">
@@ -115,46 +139,57 @@ export function Quiz() {
           </Reveal>
           <Reveal delay={150}>
             <div className="ink-frame bg-yellow px-5 py-3 shadow-[6px_6px_0_rgba(20,33,61,0.9)]">
-              <p className="font-display text-2xl leading-none text-ink">10</p>
+              <p className="font-display text-2xl leading-none text-ink">17</p>
               <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-ink/70 mt-1">
-                Preguntas al azar
+                Dos rondas · teoría y práctica
               </p>
             </div>
           </Reveal>
         </div>
         <Reveal delay={100}>
-          <p className="mt-5 text-lg sm:text-xl font-medium text-ink-soft max-w-2xl">
-            Marca la opción correcta. Si fallas, verás una <strong className="text-red font-extrabold">alerta roja</strong> y podrás
-            volver a intentarlo — el punto solo cuenta a la primera.
+          <p className="mt-5 text-lg sm:text-xl font-medium text-ink-soft max-w-3xl">
+            <strong className="text-ink font-extrabold">Ronda 1:</strong> opción múltiple, 10 preguntas al azar.{" "}
+            <strong className="text-ink font-extrabold">Ronda 2:</strong> 7 prácticas para arrastrar cada acta hasta su sobre.
+            Si fallas, verás una <strong className="text-red font-extrabold">alerta roja</strong> y podrás volver a intentarlo —
+            el punto solo cuenta a la primera.
           </p>
         </Reveal>
 
+        {/* progreso global */}
+        <Reveal delay={150}>
+          <div className="mt-8 flex gap-1.5" aria-hidden="true">
+            {Array.from({ length: GRAND }, (_, i) => {
+              const st = segState(i);
+              return (
+                <span
+                  key={i}
+                  className={`h-2.5 flex-1 transition-colors duration-500 ${
+                    st === "done-mc"
+                      ? "bg-blue"
+                      : st === "done-match"
+                        ? "bg-yellow"
+                        : st === "current"
+                          ? "bg-red blink-soft"
+                          : "bg-ink/15"
+                  }`}
+                />
+              );
+            })}
+          </div>
+        </Reveal>
+
         {/* tarjeta de examen */}
-        <Reveal delay={150} className="mt-10">
-          <div className="relative border-[3px] border-ink bg-white shadow-[10px_10px_0_rgba(208,49,31,0.9)]">
-            <div className="flex items-center justify-between gap-4 border-b-[3px] border-ink bg-navy text-white px-5 sm:px-7 py-3.5">
-              <span className="font-display text-lg sm:text-xl tracking-[0.1em]">
-                {finished ? "RESULTADO FINAL" : `PREGUNTA ${String(idx + 1).padStart(2, "0")} / ${TOTAL}`}
-              </span>
-              <span className="font-display text-lg sm:text-xl text-yellow tabular-nums">
-                ACIERTOS: {score}
-              </span>
-            </div>
+        <Reveal delay={150} className="mt-6">
+          {phase === "mc" ? (
+            <div className="relative border-[3px] border-ink bg-white shadow-[10px_10px_0_rgba(208,49,31,0.9)]">
+              <div className="flex items-center justify-between gap-4 border-b-[3px] border-ink bg-navy text-white px-5 sm:px-7 py-3.5">
+                <span className="font-display text-lg sm:text-xl tracking-[0.1em]">
+                  RONDA 1 · PREGUNTA {String(idx + 1).padStart(2, "0")} / {MC_TOTAL}
+                </span>
+                <span className="font-display text-lg sm:text-xl text-yellow tabular-nums">ACIERTOS: {score}</span>
+              </div>
 
-            {!finished ? (
               <div className="px-5 sm:px-7 py-7 sm:py-9">
-                {/* progreso segmentado */}
-                <div className="flex gap-1.5 mb-8" aria-hidden="true">
-                  {round.map((_, i) => (
-                    <span
-                      key={i}
-                      className={`h-2.5 flex-1 transition-colors duration-500 ${
-                        i < idx ? "bg-blue" : i === idx ? "bg-red blink-soft" : "bg-ink/15"
-                      }`}
-                    />
-                  ))}
-                </div>
-
                 <div className="grid md:grid-cols-[88px_1fr] gap-5 sm:gap-7 items-start">
                   <span
                     aria-hidden="true"
@@ -215,9 +250,7 @@ export function Quiz() {
                         role="alert"
                         className="mt-6 flex items-start gap-4 border-[3px] border-red bg-red-soft px-5 py-4 shadow-[6px_6px_0_rgba(208,49,31,0.55)]"
                       >
-                        <span className="font-display text-2xl text-red leading-none pt-0.5" aria-hidden="true">
-                          ✗
-                        </span>
+                        <span className="font-display text-2xl text-red leading-none pt-0.5" aria-hidden="true">✗</span>
                         <div>
                           <p className="font-display text-xl uppercase tracking-wide text-red">Respuesta incorrecta</p>
                           <p className="mt-1 text-[15px] font-semibold text-ink leading-snug">
@@ -233,55 +266,62 @@ export function Quiz() {
                         role="status"
                         className="mt-6 flex items-start gap-4 border-[3px] border-blue bg-blue-soft px-5 py-4 shadow-[6px_6px_0_rgba(29,79,196,0.55)]"
                       >
-                        <span className="font-display text-2xl text-blue leading-none pt-0.5" aria-hidden="true">
-                          ✓
-                        </span>
+                        <span className="font-display text-2xl text-blue leading-none pt-0.5" aria-hidden="true">✓</span>
                         <p className="text-[15px] font-extrabold text-navy leading-snug pt-1">
                           {attempts === 0 ? "¡Correcto a la primera! Punto para la mesa." : "¡Correcto! Esta vez sin punto, pero bien hecho."}{" "}
-                          {idx + 1 < TOTAL ? "Siguiente pregunta en un instante…" : "Cerrando el escrutinio de tu examen…"}
+                          {idx + 1 < MC_TOTAL ? "Siguiente pregunta en un instante…" : "Preparando la ronda práctica…"}
                         </p>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-            ) : (
-              /* resultado final */
-              <div className="px-5 sm:px-7 py-10 sm:py-14 text-center">
-                <p className="kicker text-ink-soft">Escrutinio terminado · Resultado del simulacro</p>
-                <p className="mt-6 font-display leading-none text-ink">
-                  <span className="text-[96px] sm:text-[140px] text-blue">{score}</span>
-                  <span className="text-4xl sm:text-6xl text-ink/40"> / {TOTAL}</span>
-                </p>
-                <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.2em] text-ink-soft">
-                  Aciertos a la primera
-                </p>
-                <div className="mt-8 inline-block font-display text-2xl sm:text-3xl tracking-[0.12em] uppercase text-red border-4 border-red px-6 py-2.5 bg-white shadow-[7px_7px_0_rgba(208,49,31,0.35)]">
-                  {v.stamp}
-                </div>
-                <p className="mt-6 text-lg font-medium text-ink-soft max-w-xl mx-auto">{v.note}</p>
-                <div className="mt-9 flex flex-wrap justify-center gap-4">
-                  <button
-                    onClick={restart}
-                    className="font-display text-xl uppercase tracking-[0.08em] bg-red text-white border-[3px] border-ink px-7 py-3.5 shadow-[6px_6px_0_rgba(20,33,61,0.9)] transition-all duration-300 hover:-translate-y-1 hover:bg-red-deep hover:shadow-[8px_8px_0_rgba(20,33,61,0.9)]"
-                  >
-                    Nuevo examen ↺
-                  </button>
-                  <a
-                    href="#instalacion"
-                    className="font-display text-xl uppercase tracking-[0.08em] bg-white text-navy border-[3px] border-ink px-7 py-3.5 shadow-[6px_6px_0_rgba(29,79,196,0.7)] transition-all duration-300 hover:-translate-y-1 hover:bg-blue-soft"
-                  >
-                    Repasar la guía ↑
-                  </a>
-                </div>
+            </div>
+          ) : phase === "match" ? (
+            <MatchRound
+              score={score}
+              onPoint={(earned) => {
+                if (earned) setScore((s) => s + 1);
+              }}
+              onIndex={setMatchIdx}
+              onDone={() => setPhase("done")}
+            />
+          ) : (
+            /* resultado final */
+            <div className="border-[3px] border-ink bg-white shadow-[10px_10px_0_rgba(20,33,61,0.9)] px-5 sm:px-7 py-10 sm:py-14 text-center">
+              <p className="kicker text-ink-soft">Escrutinio terminado · Resultado del simulacro</p>
+              <p className="mt-6 font-display leading-none text-ink">
+                <span className="text-[96px] sm:text-[140px] text-blue">{score}</span>
+                <span className="text-4xl sm:text-6xl text-ink/40"> / {GRAND}</span>
+              </p>
+              <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.2em] text-ink-soft">
+                Aciertos a la primera · teoría + práctica
+              </p>
+              <div className="mt-8 inline-block font-display text-2xl sm:text-3xl tracking-[0.12em] uppercase text-red border-4 border-red px-6 py-2.5 bg-white shadow-[7px_7px_0_rgba(208,49,31,0.35)]">
+                {v.stamp}
               </div>
-            )}
-          </div>
+              <p className="mt-6 text-lg font-medium text-ink-soft max-w-xl mx-auto">{v.note}</p>
+              <div className="mt-9 flex flex-wrap justify-center gap-4">
+                <button
+                  onClick={restart}
+                  className="font-display text-xl uppercase tracking-[0.08em] bg-red text-white border-[3px] border-ink px-7 py-3.5 shadow-[6px_6px_0_rgba(20,33,61,0.9)] transition-all duration-300 hover:-translate-y-1 hover:bg-red-deep hover:shadow-[8px_8px_0_rgba(20,33,61,0.9)]"
+                >
+                  Nuevo examen ↺
+                </button>
+                <a
+                  href="#instalacion"
+                  className="font-display text-xl uppercase tracking-[0.08em] bg-white text-navy border-[3px] border-ink px-7 py-3.5 shadow-[6px_6px_0_rgba(29,79,196,0.7)] transition-all duration-300 hover:-translate-y-1 hover:bg-blue-soft"
+                >
+                  Repasar la guía ↑
+                </a>
+              </div>
+            </div>
+          )}
         </Reveal>
 
         <Reveal delay={200}>
           <p className="mt-6 text-sm font-semibold text-ink-soft max-w-2xl">
-            Cada visita te presenta 10 preguntas distintas, en orden aleatorio. Las respuestas siguen el procedimiento
+            Cada visita te presenta preguntas distintas, en orden aleatorio. Las respuestas siguen el procedimiento
             oficial descrito en las cuatro etapas de esta guía.
           </p>
         </Reveal>
