@@ -1,27 +1,31 @@
 import {
   useCallback, useEffect, useMemo, useRef, useState,
-  type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject,
+  type ReactNode, type RefObject,
 } from "react";
 import { Reveal } from "./bits";
 
 /* =============== Podcast: El manual de supervivencia para el MJRV 2027 ===============
-   Reproducción interna desde Google Drive:
-   1) Se intenta el stream directo del archivo (audio oculto, sin reproductor visible).
-   2) Si Drive protege el archivo, se arma un reproductor de Drive INVISIBLE
-      (opacidad 0) calzado sobre el botón: cada pulsación del botón reproduce o
-      detiene el audio internamente, sin mostrar jamás la interfaz de Drive.   */
+   El botón reproduce el audio con un elemento de audio estándar (oculto, sin
+   reproductor visible). Se prueban varias rutas que devuelven el archivo como
+   audio real y se encadenan al instante si alguna falla. Si ninguna ruta directa
+   está disponible, el botón queda calzado sobre un reproductor invisible para que
+   cada pulsación reproduzca o detenga el audio igualmente.                    */
 
 const FILE_ID = "1ASF-95B1-YhSpNKKB6R4jBYNAFzfHIZ4";
 const PREVIEW_URL = `https://drive.google.com/file/d/${FILE_ID}/preview`;
 
+const driveDownload = `https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&confirm=t`;
+
+/* Rutas que devuelven el archivo como audio reproducible (se prueban en orden). */
 const SOURCES = [
-  `https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&confirm=t`,
-  `https://drive.google.com/uc?export=download&id=${FILE_ID}&confirm=t`,
-  `https://docs.google.com/uc?export=download&id=${FILE_ID}&confirm=t`,
+  `https://corsproxy.io/?url=${encodeURIComponent(driveDownload)}`,
+  `https://api.allorigins.win/raw?url=${encodeURIComponent(driveDownload)}`,
+  `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(driveDownload)}`,
+  driveDownload,
 ];
 
-/* tiempo máximo esperando el stream directo antes de armar el motor interno */
-const DIRECT_BUDGET = 8000;
+/* tiempo máximo esperando una ruta antes de pasar a la siguiente */
+const SOURCE_BUDGET = 8000;
 
 const fmt = (s: number) => {
   if (!isFinite(s) || s <= 0) return "--:--";
@@ -71,7 +75,7 @@ export function usePodcast(): Podcast {
     }
   }, []);
 
-  /* paso al motor interno invisible (Drive protege el stream directo) */
+  /* respaldo invisible: el botón queda calzado sobre un reproductor que no se ve */
   const toPhantom = useCallback(() => {
     if (engineRef.current === "phantom") return;
     clearWatchdog();
@@ -86,6 +90,20 @@ export function usePodcast(): Podcast {
     setEngine("phantom");
   }, [clearWatchdog, setEngine]);
 
+  const advanceSource = useCallback(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    srcIdx.current += 1;
+    if (srcIdx.current < SOURCES.length) {
+      clearWatchdog();
+      watchdog.current = window.setTimeout(advanceSource, SOURCE_BUDGET);
+      a.src = SOURCES[srcIdx.current];
+      a.load();
+    } else {
+      toPhantom();
+    }
+  }, [clearWatchdog, toPhantom]);
+
   const ensureAudio = useCallback((): HTMLAudioElement => {
     let a = audioRef.current;
     if (a) return a;
@@ -94,7 +112,6 @@ export function usePodcast(): Podcast {
     const el = a;
     el.addEventListener("timeupdate", () => setTime(el.currentTime));
     const onReady = () => {
-      /* el archivo responde como audio: el stream directo es viable */
       if (isFinite(el.duration) && el.duration > 0) setDur(el.duration);
       if (engineRef.current === "pending") {
         clearWatchdog();
@@ -116,40 +133,38 @@ export function usePodcast(): Podcast {
       setPlaying(false);
       setTime(0);
     });
+    /* si una ruta no entrega audio (error o contenido no reproducible) se
+       encadena automáticamente la siguiente */
     el.addEventListener("error", () => {
-      /* 1 = MEDIA_ERR_ABORTED: cambio de fuente intencional */
-      if (el.error && el.error.code === 1) return;
-      srcIdx.current += 1;
-      if (srcIdx.current < SOURCES.length && engineRef.current !== "phantom") {
-        el.src = SOURCES[srcIdx.current];
-        el.load();
-      } else {
-        toPhantom();
-      }
+      if (el.error && el.error.code === 1) return; /* cambio de fuente intencional */
+      advanceSource();
     });
     audioRef.current = a;
     return a;
-  }, [clearWatchdog, setEngine, toPhantom]);
+  }, [advanceSource, clearWatchdog, setEngine]);
 
-  /* Pre-sondeo al cargar: averiguamos en segundo plano si Drive sirve el
-     archivo como stream directo. Así, cuando la persona pulsa REPRODUCIR,
-     un solo clic basta: o suena el stream directo, o el botón ya está calzado
-     sobre el reproductor interno invisible de Drive. */
+  /* Pre-carga al entrar: averiguamos en segundo plano qué ruta entrega el audio,
+     de modo que un solo clic en REPRODUCIR baste. */
   useEffect(() => {
     const a = ensureAudio();
     srcIdx.current = 0;
     a.src = SOURCES[0];
     setLoading(true);
     clearWatchdog();
-    watchdog.current = window.setTimeout(toPhantom, DIRECT_BUDGET);
+    watchdog.current = window.setTimeout(advanceSource, SOURCE_BUDGET);
     a.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const press = useCallback(() => {
-    /* solo opera en stream directo; en modo interno el clic lo recibe Drive */
-    if (engineRef.current !== "direct") return;
+    if (engineRef.current === "phantom") return; /* el respaldo gestiona el clic */
     const a = ensureAudio();
+    if (engineRef.current !== "direct") {
+      /* todavía eligiendo ruta: forzar la reproducción la reanuda */
+      setLoading(true);
+      a.play().catch(() => { /* noop */ });
+      return;
+    }
     if (a.paused) {
       a.play().catch(() => { /* noop */ });
     } else {
@@ -157,17 +172,15 @@ export function usePodcast(): Podcast {
     }
   }, [ensureAudio]);
 
-  /* En modo interno el clic entra al iframe de Drive (origen cruzado) y su
-     evento NO burbujea al padre. La señal confiable de que el usuario pulsó el
-     reproductor invisible es que la ventana pierde el foco y el iframe pasa a
-     ser el activeElement. Lo detectamos para sincronizar vinilo/etiqueta y
-     devolvemos el foco a la página para que la siguiente pulsación vuelva a
-     ser detectable. */
+  /* El respaldo invisible es de origen cruzado: su clic no burbujea al padre.
+     La señal de que el usuario pulsó el botón es que la ventana pierde el foco
+     y el reproductor invisible pasa a ser el elemento activo. Lo detectamos para
+     sincronizar vinilo y etiqueta, y devolvemos el foco para la siguiente pulsación. */
   useEffect(() => {
     if (engine !== "phantom") return;
     const onBlur = () => {
       const now = Date.now();
-      if (now - lastToggle.current < 450) return; /* anti doble conteo */
+      if (now - lastToggle.current < 450) return;
       if (document.activeElement !== phantomRef.current) return;
       lastToggle.current = now;
       setPlaying((p) => !p);
@@ -208,9 +221,9 @@ export function TopPlayerBar({ p }: { p: Podcast }) {
   const internal = p.engine === "phantom";
 
   const label = internal
-    ? "IR AL REPRODUCTOR"
+    ? "IR A ESCUCHAR"
     : p.loading
-      ? "CONECTANDO…"
+      ? "CARGANDO…"
       : p.playing
         ? "PAUSAR"
         : "REPRODUCIR";
@@ -220,7 +233,7 @@ export function TopPlayerBar({ p }: { p: Podcast }) {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 h-12 flex items-center gap-3 sm:gap-5">
         <button
           onClick={internal ? p.goHero : p.press}
-          aria-label={internal ? "Ir al reproductor de la cabina" : p.playing ? "Pausar podcast" : "Reproducir podcast"}
+          aria-label={internal ? "Ir al reproductor" : p.playing ? "Pausar podcast" : "Reproducir podcast"}
           className={`w-9 h-9 shrink-0 border-2 border-white/70 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:border-white ${
             p.playing ? "bg-yellow text-navy" : "bg-red text-white"
           }`}
@@ -242,7 +255,7 @@ export function TopPlayerBar({ p }: { p: Podcast }) {
 
         <div className={`hidden sm:flex items-end gap-[3px] h-6 ${p.playing ? "" : "eq-paused"}`} aria-hidden="true">
           {[0, 1, 2, 3].map((i) => (
-            <span key={i} className="eq-bar w-[4px] bg-yellow" style={{ height: `${100}%`, animationDuration: `${0.7 + i * 0.13}s` }} />
+            <span key={i} className="eq-bar w-[4px] bg-yellow" style={{ height: "100%", animationDuration: `${0.7 + i * 0.13}s` }} />
           ))}
         </div>
 
@@ -252,12 +265,14 @@ export function TopPlayerBar({ p }: { p: Podcast }) {
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 leading-none">
             {internal
-              ? "Audio interno · toca play en la cabina"
+              ? "Toca el botón grande para escuchar"
               : p.loading
-                ? "Conectando con Drive…"
+                ? "Cargando el podcast…"
                 : p.playing
                   ? "Sonando — sigue leyendo la guía"
-                  : "Listo para reproducir"}
+                  : p.time > 0
+                    ? "En pausa"
+                    : "Listo para reproducir"}
           </p>
         </div>
 
@@ -275,14 +290,8 @@ export function TopPlayerBar({ p }: { p: Podcast }) {
 /* =============== cabina protagonista =============== */
 
 export function RadioHero({ p }: { p: Podcast }) {
-  const wave = useMemo(
-    () => Array.from({ length: 64 }, (_, i) => 18 + Math.round(52 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21)))),
-    []
-  );
-  const frac = p.dur > 0 ? p.time / p.dur : 0;
   const internal = p.engine === "phantom";
-
-  const bigLabel = p.loading ? "CONECTANDO…" : p.playing ? "PAUSAR" : "REPRODUCIR";
+  const bigLabel = p.loading ? "CARGANDO…" : p.playing ? "PAUSAR" : "REPRODUCIR";
 
   return (
     <section
@@ -298,12 +307,12 @@ export function RadioHero({ p }: { p: Podcast }) {
         <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           {/* texto */}
           <div className="lg:col-span-7">
-            <RevealInline>
+            <Reveal>
               <p className="kicker flex items-center gap-3 text-yellow">
                 <span className="inline-block w-10 h-[3px] bg-yellow" />
                 Audio de bolsillo · Escúchalo mientras lees
               </p>
-            </RevealInline>
+            </Reveal>
             <h1 className="mt-4 font-display uppercase leading-[0.94] text-4xl sm:text-6xl xl:text-[72px]">
               El manual de
               <br />
@@ -339,29 +348,7 @@ export function RadioHero({ p }: { p: Podcast }) {
               </span>
 
               <div className="flex items-center gap-6">
-                {/* vinilo */}
-                <div className="w-28 h-28 sm:w-32 sm:h-32 shrink-0 relative">
-                  <svg viewBox="0 0 120 120" className={`w-full h-full ${p.playing ? "spin-vinyl" : ""}`} aria-hidden="true">
-                    <circle cx="60" cy="60" r="57" fill="#0a1e47" stroke="#ffffff" strokeOpacity="0.35" strokeWidth="2" />
-                    <circle cx="60" cy="60" r="46" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
-                    <circle cx="60" cy="60" r="36" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
-                    <circle cx="60" cy="60" r="20" fill="#f5a800" stroke="#14213d" strokeWidth="2.4" />
-                    <circle cx="60" cy="60" r="4" fill="#14213d" />
-                    <path d="M60 12a48 48 0 0 1 34 14" fill="none" stroke="#ffffff" strokeOpacity="0.5" strokeWidth="2.4" strokeLinecap="round" />
-                  </svg>
-                  {/* brazo */}
-                  <svg
-                    viewBox="0 0 80 120"
-                    className={`absolute -right-7 -top-3 w-16 h-24 transition-transform duration-700 origin-top-right ${
-                      p.playing ? "rotate-[16deg]" : "rotate-[0deg]"
-                    }`}
-                    aria-hidden="true"
-                  >
-                    <line x1="66" y1="8" x2="30" y2="78" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
-                    <circle cx="66" cy="8" r="7" fill="#f5a800" stroke="#14213d" strokeWidth="2" />
-                    <rect x="22" y="72" width="16" height="14" rx="2" fill="#f5a800" stroke="#14213d" strokeWidth="2" />
-                  </svg>
-                </div>
+                <Vinyl playing={p.playing} />
 
                 {/* botón principal */}
                 <div
@@ -387,15 +374,15 @@ export function RadioHero({ p }: { p: Podcast }) {
                     <span className="font-display text-lg tracking-[0.14em] leading-none">{bigLabel}</span>
                   </span>
 
-                  {/* reproductor interno de Drive: invisible, calzado sobre el botón */}
+                  {/* respaldo invisible: nunca se ve, solo recibe la pulsación */}
                   <div
-                    className={`absolute -inset-2 z-20 ${internal ? "pointer-events-auto" : "pointer-events-none"}`}
+                    className={`absolute -inset-10 z-20 ${internal ? "pointer-events-auto" : "pointer-events-none"}`}
                     aria-hidden="true"
                   >
                     <iframe
                       ref={p.phantomRef}
                       src={PREVIEW_URL}
-                      title="Reproductor interno de audio"
+                      title="Reproductor de audio"
                       className="w-full h-full opacity-0 border-0"
                       allow="autoplay"
                       loading="lazy"
@@ -404,23 +391,16 @@ export function RadioHero({ p }: { p: Podcast }) {
                 </div>
               </div>
 
-              {/* forma de onda */}
-              <Waveform wave={wave} frac={frac} playing={p.playing} engine={p.engine} seek={p.seek} />
-
-              <div className="mt-4 flex items-center justify-between text-[12px] font-extrabold uppercase tracking-[0.18em] text-white/60">
-                <span className="tabular-nums text-white/90">{fmt(p.time)}</span>
-                <span>
-                  {internal
-                    ? "El botón reproduce el audio internamente desde Drive"
-                    : p.loading
-                      ? "Conectando con Google Drive…"
-                      : p.playing
-                        ? "Sonando — desliza para seguir leyendo"
-                        : "Pulsa reproducir y sigue leyendo la guía"}
-                </span>
-                <span className="tabular-nums text-white/90">{fmt(p.dur)}</span>
-              </div>
+              <Wave p={p} />
             </div>
+
+            <p className="mt-4 text-[12px] font-bold uppercase tracking-[0.18em] text-white/55 text-center">
+              {internal
+                ? "Pulsa el botón: reproduce y detiene el podcast"
+                : p.playing
+                  ? "Sonando · pulsa de nuevo para detener"
+                  : "Un clic y el podcast te acompaña en toda la guía"}
+            </p>
           </div>
         </div>
       </div>
@@ -428,43 +408,65 @@ export function RadioHero({ p }: { p: Podcast }) {
   );
 }
 
-/* forma de onda: viva mientras suena; permite saltar de minuto en reproducción directa */
-function Waveform({
-  wave, frac, playing, engine, seek,
-}: {
-  wave: number[];
-  frac: number;
-  playing: boolean;
-  engine: Engine;
-  seek: (frac: number) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const clickable = engine === "direct";
+/* =============== vinilo =============== */
 
-  const click = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (!clickable || !ref.current) return;
-    const r = ref.current.getBoundingClientRect();
-    seek((e.clientX - r.left) / r.width);
-  };
+function Vinyl({ playing }: { playing: boolean }) {
+  return (
+    <div className="w-28 h-28 sm:w-32 sm:h-32 shrink-0 relative">
+      <svg viewBox="0 0 120 120" className={`w-full h-full ${playing ? "spin-vinyl" : ""}`} aria-hidden="true">
+        <circle cx="60" cy="60" r="57" fill="#0a1e47" stroke="#ffffff" strokeOpacity="0.35" strokeWidth="2" />
+        <circle cx="60" cy="60" r="46" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
+        <circle cx="60" cy="60" r="36" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
+        <circle cx="60" cy="60" r="20" fill="#f5a800" stroke="#14213d" strokeWidth="2.4" />
+        <circle cx="60" cy="60" r="4" fill="#14213d" />
+        <path d="M60 12a48 48 0 0 1 34 14" fill="none" stroke="#ffffff" strokeOpacity="0.5" strokeWidth="2.4" strokeLinecap="round" />
+      </svg>
+      <svg
+        viewBox="0 0 80 120"
+        className={`absolute -right-7 -top-3 w-16 h-24 transition-transform duration-700 origin-top-right ${
+          playing ? "rotate-[16deg]" : "rotate-[0deg]"
+        }`}
+        aria-hidden="true"
+      >
+        <line x1="66" y1="8" x2="30" y2="78" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+        <circle cx="66" cy="8" r="7" fill="#f5a800" stroke="#14213d" strokeWidth="2" />
+        <rect x="22" y="72" width="16" height="14" rx="2" fill="#f5a800" stroke="#14213d" strokeWidth="2" />
+      </svg>
+    </div>
+  );
+}
+
+/* =============== forma de onda =============== */
+
+function Wave({ p }: { p: Podcast }) {
+  const bars = useMemo(
+    () => Array.from({ length: 64 }, (_, i) => 18 + Math.round(52 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21)))),
+    []
+  );
+  const frac = p.dur > 0 ? p.time / p.dur : 0;
+  const passed = Math.floor(frac * bars.length);
+  const clickable = p.engine === "direct" && p.dur > 0;
 
   return (
     <div
-      ref={ref}
-      onClick={click}
-      className={`mt-6 flex items-end gap-[3px] h-20 ${playing ? "wf-live" : ""} ${
-        clickable ? "cursor-pointer" : ""
-      }`}
-      aria-hidden="true"
+      className={`mt-6 flex items-end gap-[3px] h-16 ${p.playing ? "wf-live" : ""} ${clickable ? "cursor-pointer" : ""}`}
+      onClick={(e) => {
+        if (!clickable) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        p.seek((e.clientX - r.left) / r.width);
+      }}
+      role={clickable ? "slider" : undefined}
+      aria-label={clickable ? "Saltar a otro momento del podcast" : undefined}
     >
-      {wave.map((h, i) => {
-        const passed = frac > 0 && i / wave.length <= frac;
+      {bars.map((h, i) => {
+        const active = i < passed;
         return (
           <span
             key={i}
-            className="wf-bar flex-1 rounded-[1px] transition-colors duration-300"
+            className={`wf-bar flex-1 min-w-0 ${active ? "bg-red" : "bg-white/30"}`}
             style={{
               height: `${h}%`,
-              backgroundColor: passed ? "#d0311f" : playing ? "#f5a800" : "rgba(255,255,255,0.35)",
+              backgroundColor: active ? "#d0311f" : p.playing ? "#f5a800" : "rgba(255,255,255,0.35)",
               animationDelay: `${(i % 10) * 0.06}s`,
               animationDuration: `${0.7 + (i % 5) * 0.09}s`,
             }}
@@ -473,9 +475,4 @@ function Waveform({
       })}
     </div>
   );
-}
-
-/* revelado del kicker de la cabina */
-function RevealInline({ children }: { children: ReactNode }) {
-  return <Reveal>{children}</Reveal>;
 }
