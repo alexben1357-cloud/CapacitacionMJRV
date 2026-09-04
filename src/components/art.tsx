@@ -260,7 +260,7 @@ export function VotacionArt({ className = "" }: { className?: string }) {
         <path d="M383 244c0-26 14-40 32-40s32 14 32 40v88h-64z" fill={NAVY} {...stroke} strokeWidth={2.4} />
         {/* brazo con papeleta */}
         <path d="M383 252c-26-4-46-22-52-44l20-10c8 18 22 30 40 34z" fill={NAVY} {...stroke} strokeWidth={2.4} />
-        <g className="bob">
+        <g>
           <polygon points="306,196 344,186 352,216 314,226" fill={WHITE} {...stroke} strokeWidth={2.6} />
           <path d="m318 208 4 4 9-10" fill="none" stroke={BLUE} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
         </g>

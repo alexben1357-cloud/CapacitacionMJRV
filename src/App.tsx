@@ -10,8 +10,9 @@ import {
   CoverArt, InstalacionArt, VotacionArt, EscrutinioArt, EmbalajeArt, BallotDiagram, RotaryStamp,
 } from "./components/art";
 import {
-  Reveal, MaskLines, Ticker, ProgressBar, StageNav, useActiveSection, StepRow, Callout, SubHead,
+  Reveal, MaskLines, Ticker, StageNav, useActiveSection, StepRow, Callout, SubHead,
 } from "./components/bits";
+import { AudioBar } from "./components/audio";
 
 /* ================= metas de etapa ================= */
 
@@ -104,7 +105,7 @@ function StageHeader({ s, art }: { s: (typeof STAGES)[number]; art: ReactNode })
         <div className="lg:col-span-5">
           <Reveal delay={150}>
             <figure>
-              <div className="ink-frame bg-white paper-edge hover:-translate-y-1.5 hover:rotate-[0.6deg] transition-transform duration-500">
+              <div className="ink-frame bg-white paper-edge hover:-translate-y-1.5 transition-transform duration-500">
                 {art}
               </div>
               <figcaption className="mt-3 text-sm italic font-medium text-ink-soft border-l-4 pl-3" style={{ borderColor: s.hex }}>
@@ -214,8 +215,8 @@ function EmbalajeChecklist() {
         ))}
       </ul>
       <div
-        className={`pointer-events-none absolute -right-4 -bottom-6 transition-all duration-500 ${
-          all ? "opacity-100 scale-100 -rotate-12" : "opacity-0 scale-50 -rotate-45"
+        className={`pointer-events-none absolute -right-3 -bottom-6 transition-all duration-500 ${
+          all ? "opacity-100 scale-100 rotate-0" : "opacity-0 scale-50 rotate-0"
         }`}
       >
         <div className="font-display text-2xl text-red border-4 border-red px-4 py-1.5 tracking-[0.14em] uppercase bg-white/90">
@@ -233,7 +234,7 @@ export default function App() {
 
   return (
     <div className="grain bg-white text-ink min-h-screen">
-      <ProgressBar />
+      <AudioBar />
 
       {/* ---------- masthead ---------- */}
       <div className="border-b-2 border-ink bg-white">
@@ -297,14 +298,14 @@ export default function App() {
 
             <div className="lg:col-span-6 xl:col-span-7 relative">
               <Reveal delay={200}>
-                <div className="ink-frame bg-white paper-edge relative z-10 hover:rotate-[-0.5deg] transition-transform duration-500">
+                <div className="ink-frame bg-white paper-edge relative z-10 transition-transform duration-500">
                   <CoverArt className="w-full h-auto block" />
                   <p className="border-t-[3px] border-ink px-4 py-2.5 text-sm italic font-medium text-ink-soft bg-paper-2">
                     Ilustración 01 — El instante decisivo: la papeleta deja la mano y la urna hace su trabajo.
                   </p>
                 </div>
               </Reveal>
-              <div className="absolute -left-6 sm:-left-10 -bottom-8 z-20 w-32 sm:w-40 bob">
+              <div className="absolute -left-6 sm:-left-10 -bottom-8 z-20 w-32 sm:w-40">
                 <RotaryStamp className="w-full h-auto drop-shadow-lg" />
               </div>
             </div>
@@ -373,7 +374,7 @@ export default function App() {
                     </div>
                     <div className="p-4">
                       <div className="flex items-center gap-3">
-                        <span className="w-11 h-11 border-2 border-ink bg-white flex items-center justify-center group-hover:rotate-[-8deg] transition-transform duration-300">
+                        <span className="w-11 h-11 border-2 border-ink bg-white flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                           <Icon name={r.icon} className="w-7 h-7" />
                         </span>
                         <h4 className="font-display text-2xl uppercase text-navy">{r.rol}</h4>
@@ -425,7 +426,7 @@ export default function App() {
                       <span className="font-display num-outline-thin text-5xl leading-none w-14 shrink-0 text-blue group-hover:text-blue">
                         {i + 1}
                       </span>
-                      <span className="w-14 h-14 border-2 border-ink bg-white flex items-center justify-center shrink-0 group-hover:rotate-[-8deg] transition-transform duration-300">
+                      <span className="w-14 h-14 border-2 border-ink bg-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
                         <Icon name={m.icon} className="w-9 h-9" />
                       </span>
                       <div>
@@ -550,7 +551,7 @@ export default function App() {
                     {sobresAzules.map((s, i) => (
                       <Reveal key={s.sobre} delay={i * 90}>
                         <div className="group flex items-center gap-4 p-4 sm:p-5 hover:bg-blue-soft transition-colors duration-300">
-                          <span className="relative w-16 h-12 shrink-0 border-[3px] border-ink bg-blue flex items-center justify-center group-hover:-rotate-3 transition-transform duration-300">
+                          <span className="relative w-16 h-12 shrink-0 border-[3px] border-ink bg-blue flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                             <svg viewBox="0 0 64 48" className="absolute inset-0 w-full h-full" aria-hidden="true">
                               <path d="M2 4l30 22L62 4" fill="none" stroke="#fff" strokeWidth="3" />
                             </svg>

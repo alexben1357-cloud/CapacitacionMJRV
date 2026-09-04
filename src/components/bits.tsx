@@ -121,7 +121,7 @@ export interface StageMeta {
 
 export function StageNav({ stages, active }: { stages: StageMeta[]; active: string }) {
   return (
-    <nav className="sticky top-0 z-[60] bg-white/95 backdrop-blur-sm border-b-[3px] border-ink">
+    <nav className="sticky top-12 z-[60] bg-white/95 backdrop-blur-sm border-b-[3px] border-ink">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 flex items-stretch overflow-x-auto">
         <span className="hidden md:flex items-center pr-5 mr-2 border-r-2 border-ink/15">
           <span className="kicker text-ink/70">La jornada</span>
