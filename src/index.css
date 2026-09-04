@@ -102,6 +102,11 @@ body {
   background-size: 12px 12px;
 }
 
+.dots-bg-white {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.2px, transparent 1.2px);
+  background-size: 15px 15px;
+}
+
 .paper-edge {
   box-shadow:
     0 1px 0 rgba(20, 33, 61, 0.08),
@@ -226,6 +231,26 @@ body {
   transform: scaleY(0.3);
 }
 
+/* vinilo girando */
+.spin-vinyl {
+  animation: spin-slow 5.5s linear infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* forma de onda del podcast */
+.wf-bar {
+  transform-origin: bottom;
+}
+
+.wf-live .wf-bar {
+  animation: wf-dance 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes wf-dance {
+  to { transform: scaleY(0.55); }
+}
+
 /* scroll reveal */
 .reveal {
   opacity: 0;
@@ -311,11 +336,13 @@ body {
   html { scroll-behavior: auto; }
   .ticker-track,
   .spin-slow,
+  .spin-vinyl,
   .clock-hand,
   .clock-hand-fast,
   .drop-paper,
   .blink-soft,
   .eq-bar,
+  .wf-bar,
   .grain::after {
     animation: none !important;
   }

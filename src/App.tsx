@@ -12,7 +12,7 @@ import {
 import {
   Reveal, MaskLines, Ticker, StageNav, useActiveSection, StepRow, Callout, SubHead,
 } from "./components/bits";
-import { AudioBar } from "./components/audio";
+import { usePodcast, TopPlayerBar, RadioHero } from "./components/audio";
 
 /* ================= metas de etapa ================= */
 
@@ -231,10 +231,11 @@ function EmbalajeChecklist() {
 
 export default function App() {
   const active = useActiveSection(STAGES.map((s) => s.id));
+  const podcast = usePodcast();
 
   return (
     <div className="grain bg-white text-ink min-h-screen">
-      <AudioBar />
+      <TopPlayerBar p={podcast} />
 
       {/* ---------- masthead ---------- */}
       <div className="border-b-2 border-ink bg-white">
@@ -253,6 +254,9 @@ export default function App() {
           </span>
         </div>
       </div>
+
+      {/* ---------- podcast protagonista ---------- */}
+      <RadioHero p={podcast} />
 
       {/* ---------- portada ---------- */}
       <header id="portada" className="relative overflow-hidden border-b-[3px] border-ink">
