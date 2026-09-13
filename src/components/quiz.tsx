@@ -336,11 +336,11 @@ export function Quiz() {
                 <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
                   {(
                     [
-                      ["6%", "12%", "w-6", "rotate-12", "#d0311f", "0s"],
-                      ["14%", "74%", "w-5", "-rotate-12", "#1d4fc4", "0.4s"],
-                      ["88%", "16%", "w-8", "-rotate-6", "#d0311f", "0.2s"],
-                      ["82%", "70%", "w-6", "rotate-45", "#1d4fc4", "0.6s"],
-                      ["50%", "6%", "w-5", "rotate-6", "#1d4fc4", "0.8s"],
+                      ["6%", "12%", "w-6", "", "#d0311f", "0s"],
+                      ["14%", "74%", "w-5", "", "#1d4fc4", "0.4s"],
+                      ["88%", "16%", "w-8", "", "#d0311f", "0.2s"],
+                      ["82%", "70%", "w-6", "", "#1d4fc4", "0.6s"],
+                      ["50%", "6%", "w-5", "", "#1d4fc4", "0.8s"],
                     ] as Array<[string, string, string, string, string, string]>
                   ).map(([top, left, w, rot, fill, delay], i) => (
                     <svg
@@ -356,7 +356,7 @@ export function Quiz() {
               )}
 
               {tier.winner && (
-                <div className="inline-flex items-center gap-3 font-display text-xl sm:text-2xl tracking-[0.18em] uppercase text-ink bg-white border-[3px] border-ink px-6 py-2 rotate-[-2deg] shadow-[6px_6px_0_rgba(20,33,61,0.9)]">
+                <div className="inline-flex items-center gap-3 font-display text-xl sm:text-2xl tracking-[0.18em] uppercase text-ink bg-white border-[3px] border-ink px-6 py-2 shadow-[6px_6px_0_rgba(20,33,61,0.9)]">
                   <svg viewBox="0 0 16 16" className="w-5 h-5" aria-hidden="true">
                     <path d="M8 0l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#d0311f" stroke="#14213d" strokeWidth="0.8" />
                   </svg>
@@ -385,7 +385,7 @@ export function Quiz() {
               </p>
 
               <div
-                className={`mt-8 inline-block font-display text-2xl sm:text-3xl tracking-[0.12em] uppercase px-6 py-2.5 rotate-[-1.5deg] border-4 ${
+                className={`mt-8 inline-block font-display text-2xl sm:text-3xl tracking-[0.12em] uppercase px-6 py-2.5 border-4 ${
                   tier.tone === "gold"
                     ? "bg-red text-white border-ink shadow-[7px_7px_0_rgba(20,33,61,0.9)]"
                     : tier.tone === "blue"

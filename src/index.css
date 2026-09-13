@@ -160,39 +160,14 @@ body {
   animation-play-state: paused;
 }
 
-@keyframes spin-slow {
-  to { transform: rotate(360deg); }
-}
-
-.spin-slow {
-  animation: spin-slow 26s linear infinite;
-  transform-origin: center;
-  transform-box: fill-box;
-}
-
-@keyframes clock-hand {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.clock-hand {
-  animation: clock-hand 12s linear infinite;
-  transform-origin: center;
-  transform-box: fill-box;
-}
-
-.clock-hand-fast {
-  animation: clock-hand 2.5s linear infinite;
-  transform-origin: center;
-  transform-box: fill-box;
-}
+/* Animaciones de rotación eliminadas */
 
 @keyframes drop-paper {
-  0%, 55% { transform: translateY(0) rotate(-6deg); opacity: 1; }
-  80% { transform: translateY(46px) rotate(-6deg); opacity: 1; }
-  88% { transform: translateY(50px) rotate(-6deg); opacity: 0; }
-  89% { transform: translateY(0) rotate(-6deg); opacity: 0; }
-  100% { transform: translateY(0) rotate(-6deg); opacity: 1; }
+  0%, 55% { transform: translateY(0); opacity: 1; }
+  80% { transform: translateY(46px); opacity: 1; }
+  88% { transform: translateY(50px); opacity: 0; }
+  89% { transform: translateY(0); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
 .drop-paper {
@@ -231,12 +206,7 @@ body {
   transform: scaleY(0.3);
 }
 
-/* vinilo girando */
-.spin-vinyl {
-  animation: spin-slow 5.5s linear infinite;
-  transform-origin: center;
-  transform-box: fill-box;
-}
+/* Animación de vinilo eliminada */
 
 /* forma de onda del podcast */
 .wf-bar {
@@ -348,10 +318,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .ticker-track,
-  .spin-slow,
-  .spin-vinyl,
-  .clock-hand,
-  .clock-hand-fast,
   .drop-paper,
   .blink-soft,
   .eq-bar,
