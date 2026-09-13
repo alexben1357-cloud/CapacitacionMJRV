@@ -106,7 +106,7 @@ export function CoverArt({ className = "" }: { className?: string }) {
         ))}
         <line x1="104" y1="112" x2="104" y2="140" stroke={INK} strokeWidth="5" strokeLinecap="round" transform="rotate(180 104 112)" />
         <line x1="104" y1="112" x2="104" y2="136" stroke={INK} strokeWidth="5" strokeLinecap="round" transform="rotate(90 104 112)" />
-        <g className="clock-hand">
+        <g className="clock-hand" style={{ transformOrigin: "104px 112px" }}>
           <line x1="104" y1="112" x2="104" y2="76" stroke={RED} strokeWidth="4" strokeLinecap="round" />
         </g>
         <circle cx="104" cy="112" r="6" fill={INK} />
@@ -519,7 +519,7 @@ export function RotaryStamp({ className = "" }: { className?: string }) {
       </defs>
       <circle cx="80" cy="80" r="76" fill={WHITE} stroke={RED} strokeWidth="3" />
       <circle cx="80" cy="80" r="42" fill="none" stroke={RED} strokeWidth="2" strokeDasharray="4 5" />
-      <g className="spin-slow">
+      <g className="spin-slow" style={{ transformOrigin: "80px 80px" }}>
         <text fontFamily="Archivo, sans-serif" fontWeight="800" fontSize="13.5" letterSpacing="3.2" fill={RED}>
           <textPath href="#stamp-circle">TU VOTO · TU DECISIÓN · SECCIONALES · CPCCS ·</textPath>
         </text>

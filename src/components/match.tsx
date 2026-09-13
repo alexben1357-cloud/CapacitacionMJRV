@@ -419,6 +419,7 @@ export function MatchItem({
   const [wrongId, setWrongId] = useState<string | null>(null);
   const [sealed, setSealed] = useState(false);
   const [errored, setErrored] = useState(false);
+  const [hoveredTarget, setHoveredTarget] = useState<string | null>(null);
 
   const accepted = dyn.targets.find((t) => t.accepts === dyn.item.id);
 
@@ -428,11 +429,13 @@ export function MatchItem({
       setSealed(true);
       setSelected(false);
       setDragging(false);
+      setHoveredTarget(null);
       onResolved(!errored);
     } else {
       setErrored(true);
       setWrongId(t.accepts);
       setSelected(false);
+      setHoveredTarget(null);
       window.setTimeout(() => setWrongId(null), 650);
     }
   };
@@ -448,25 +451,27 @@ export function MatchItem({
 
       <div className="mt-6 grid lg:grid-cols-[240px_1fr] gap-6 items-start">
         {/* documento a mover */}
-        <div>
-          <div
-            draggable={!sealed}
-            onDragStart={(e: DragEvent<HTMLDivElement>) => {
-              e.dataTransfer.setData("text/plain", dyn.item.id);
-              e.dataTransfer.effectAllowed = "move";
-              setDragging(true);
-            }}
-            onDragEnd={() => setDragging(false)}
-            onClick={() => !sealed && setSelected((v) => !v)}
-            role="button"
-            aria-label={`Mover ${dyn.item.name} a su destino`}
-            className={`relative h-52 border-[3px] border-ink bg-white p-3 shadow-[6px_6px_0_rgba(20,33,61,0.9)] transition-all duration-300 ${
-              sealed
-                ? "opacity-50"
-                : "cursor-grab active:cursor-grabbing hover:-translate-y-1 hover:shadow-[9px_9px_0_rgba(20,33,61,0.9)]"
-            } ${dragging ? "opacity-40" : ""} ${selected && !sealed ? "-translate-y-1 ring-4 ring-blue" : ""}`}
-          >
-            <DocSvg id={dyn.item.svg} />
+        <div className="relative">
+          <div className="h-52 border-[3px] border-ink bg-white p-3 shadow-[6px_6px_0_rgba(20,33,61,0.9)]">
+            <div
+              draggable={!sealed}
+              onDragStart={(e: DragEvent<HTMLDivElement>) => {
+                e.dataTransfer.setData("text/plain", dyn.item.id);
+                e.dataTransfer.effectAllowed = "move";
+                setDragging(true);
+              }}
+              onDragEnd={() => setDragging(false)}
+              onClick={() => !sealed && setSelected((v) => !v)}
+              role="button"
+              aria-label={`Mover ${dyn.item.name} a su destino`}
+              className={`h-full transition-all duration-300 ${
+                sealed
+                  ? "opacity-30 scale-90"
+                  : "cursor-grab active:cursor-grabbing hover:scale-105"
+              } ${dragging ? "opacity-30 scale-95" : ""} ${selected && !sealed ? "scale-105 ring-4 ring-blue ring-offset-2" : ""}`}
+            >
+              <DocSvg id={dyn.item.svg} />
+            </div>
             {sealed && (
               <span className="absolute top-2 right-2 font-display text-xs tracking-[0.14em] bg-blue text-white border-2 border-ink px-2 py-0.5">
                 ENVIADO ✓
@@ -484,30 +489,46 @@ export function MatchItem({
           {dyn.targets.map((t) => {
             const isWrong = wrongId === t.accepts;
             const isAccepted = sealed && t.accepts === dyn.item.id;
+            const isHovered = hoveredTarget === t.label;
             return (
               <div
                 key={t.label}
-                onDragOver={(e: DragEvent<HTMLDivElement>) => e.preventDefault()}
+                onDragOver={(e: DragEvent<HTMLDivElement>) => {
+                  e.preventDefault();
+                  setHoveredTarget(t.label);
+                }}
+                onDragLeave={() => setHoveredTarget(null)}
                 onDrop={(e: DragEvent<HTMLDivElement>) => {
                   e.preventDefault();
                   setDragging(false);
+                  setHoveredTarget(null);
                   tryTarget(t);
                 }}
                 onClick={() => selected && tryTarget(t)}
-                className={`relative h-44 border-[3px] border-ink bg-white p-2.5 flex flex-col justify-between transition-all duration-300 ${
+                className={`relative h-44 border-[3px] border-ink bg-white p-2.5 flex flex-col justify-between transition-all duration-300 overflow-hidden ${
                   isWrong ? "border-red bg-red-soft shake" : ""
                 } ${isAccepted ? "ring-4 ring-blue" : ""} ${
                   dragging || selected ? "border-dashed border-blue bg-blue-soft/60 cursor-pointer hover:bg-blue-soft" : ""
-                }`}
+                } ${isHovered ? "scale-105 shadow-[0_8px_16px_rgba(0,0,0,0.2)]" : ""}`}
               >
-                <div className="h-[92px] flex items-end">
+                {/* Documento "detrás" del sobre cuando se arrastra sobre él */}
+                {(isHovered || isAccepted) && (
+                  <div className={`absolute inset-0 flex items-center justify-center transition-all duration-500 ${
+                    isAccepted ? "opacity-100 scale-90 -translate-y-2" : "opacity-60 scale-95"
+                  }`}>
+                    <div className="w-3/4 h-3/4">
+                      <DocSvg id={dyn.item.svg} />
+                    </div>
+                  </div>
+                )}
+                <div className="relative z-10 h-[92px] flex items-end">
                   <TargetSvg id={t.svg} />
                 </div>
-                <p className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-ink text-center leading-tight">
+                <p className="relative z-10 text-[12px] font-extrabold uppercase tracking-[0.06em] text-ink text-center leading-tight">
                   {t.label}
                 </p>
                 {isAccepted && (
-                  <span className="absolute -top-3 -right-3 w-9 h-9 bg-blue border-[3px] border-ink flex items-center justify-center shadow-[3px_3px_0_rgba(20,33,61,0.9)]">
+                  <span className="absolute -top-3 -right-3 w-9 h-9 bg-blue border-[3px] border-ink flex items-center justify-center shadow-[3px_3px_0_rgba(20,33,61,0.9)] z-20">
                     <svg viewBox="0 0 16 16" className="w-4 h-4" aria-hidden="true">
                       <path d="m3 8.5 3.5 3.5L13 5" fill="none" stroke="#ffffff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
