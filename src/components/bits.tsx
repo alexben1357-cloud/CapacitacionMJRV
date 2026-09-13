@@ -199,7 +199,7 @@ export function StepRow({ step, hex, soft, i }: { step: Step; hex: string; soft:
             <ul className="mt-4 space-y-3">
               {step.bullets.map((b, bi) => (
                 <li key={bi} className="flex items-start gap-3 border-2 border-ink bg-white p-3.5 shadow-[4px_4px_0_rgba(20,33,61,0.85)]">
-                  <span className="mt-1 w-3 h-3 shrink-0 rotate-45" style={{ backgroundColor: hex }} />
+                  <span className="mt-1 w-3 h-3 shrink-0" style={{ backgroundColor: hex }} />
                   <span className="text-[15px] sm:text-base leading-snug">
                     <strong className="font-extrabold">{b.title}.</strong> <span className="font-medium">{b.desc}</span>
                   </span>

@@ -334,7 +334,7 @@ export function RadioHero({ p }: { p: Podcast }) {
                     <div className="flex items-center gap-6">
                       {/* vinilo */}
                       <div className="w-28 h-28 sm:w-32 sm:h-32 shrink-0 relative">
-                        <svg viewBox="0 0 120 120" className={`w-full h-full ${p.playing ? "spin-vinyl" : ""}`} style={{ transformOrigin: "60px 60px" }} aria-hidden="true">
+                        <svg viewBox="0 0 120 120" className="w-full h-full" aria-hidden="true">
                           <circle cx="60" cy="60" r="57" fill="#0a1e47" stroke="#ffffff" strokeOpacity="0.35" strokeWidth="2" />
                           <circle cx="60" cy="60" r="46" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
                           <circle cx="60" cy="60" r="36" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
@@ -345,10 +345,7 @@ export function RadioHero({ p }: { p: Podcast }) {
                         {/* brazo */}
                         <svg
                           viewBox="0 0 80 120"
-                          className={`absolute -right-7 -top-3 w-16 h-24 transition-transform duration-700 origin-top-right ${
-                            p.playing ? "rotate-[16deg]" : "rotate-[0deg]"
-                          }`}
-                          aria-hidden="true"
+                            className="absolute -right-7 -top-3 w-16 h-24 origin-top-right"                          aria-hidden="true"
                         >
                           <line x1="66" y1="8" x2="30" y2="78" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
                           <circle cx="66" cy="8" r="7" fill="#f5a800" stroke="#14213d" strokeWidth="2" />
@@ -417,7 +414,7 @@ export function RadioHero({ p }: { p: Podcast }) {
                   <>
                     {/* reproductor integrado: se activa solo si el audio propio no respondió */}
                     <div className="flex items-center gap-4">
-                      <svg viewBox="0 0 120 120" className="w-14 h-14 shrink-0 spin-vinyl" style={{ transformOrigin: "60px 60px" }} aria-hidden="true">
+                      <svg viewBox="0 0 120 120" className="w-14 h-14 shrink-0" aria-hidden="true">
                         <circle cx="60" cy="60" r="57" fill="#0a1e47" stroke="#ffffff" strokeOpacity="0.35" strokeWidth="2" />
                         <circle cx="60" cy="60" r="36" fill="none" stroke="#ffffff" strokeOpacity="0.16" strokeWidth="1.6" />
                         <circle cx="60" cy="60" r="20" fill="#f5a800" stroke="#14213d" strokeWidth="2.4" />

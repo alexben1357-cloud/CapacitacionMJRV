@@ -20,7 +20,7 @@ const stroke = {
 
 function HatchPattern({ id, color = INK, opacity = 0.35 }: { id: string; color?: string; opacity?: number }) {
   return (
-    <pattern id={id} width="8" height="8" patternTransform="rotate(-45)" patternUnits="userSpaceOnUse">
+    <pattern id={id} width="8" height="8" patternUnits="userSpaceOnUse">
       <rect width="8" height="8" fill="none" />
       <line x1="0" y1="0" x2="0" y2="8" stroke={color} strokeWidth="1.6" opacity={opacity} />
     </pattern>
@@ -106,14 +106,14 @@ export function CoverArt({ className = "" }: { className?: string }) {
         ))}
         <line x1="104" y1="112" x2="104" y2="140" stroke={INK} strokeWidth="5" strokeLinecap="round" transform="rotate(180 104 112)" />
         <line x1="104" y1="112" x2="104" y2="136" stroke={INK} strokeWidth="5" strokeLinecap="round" transform="rotate(90 104 112)" />
-        <g className="clock-hand" style={{ transformOrigin: "104px 112px" }}>
+        <g>
           <line x1="104" y1="112" x2="104" y2="76" stroke={RED} strokeWidth="4" strokeLinecap="round" />
         </g>
         <circle cx="104" cy="112" r="6" fill={INK} />
       </g>
 
       {/* sello estrella */}
-      <g transform="rotate(12 545 470)">
+      <g>
         <path
           d="M545 415l14 29 32 5-23 22 5 32-28-15-28 15 5-32-23-22 32-5z"
           fill={RED}
@@ -187,14 +187,14 @@ export function InstalacionArt({ className = "" }: { className?: string }) {
       </g>
 
       {/* sobres al frente */}
-      <g transform="rotate(-7 262 236)">
+      <g>
         <rect x="232" y="216" width="60" height="40" fill={BLUE} {...stroke} strokeWidth={2.6} />
         <path d="m232 218 30 22 30-22" fill="none" stroke={WHITE} strokeWidth="2.4" />
         <text x="262" y="250" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="15" fill={WHITE}>
           C1
         </text>
       </g>
-      <g transform="rotate(6 320 238)">
+      <g>
         <rect x="292" y="220" width="56" height="38" fill={YELLOW} {...stroke} strokeWidth={2.6} />
         <path d="m292 222 28 20 28-20" fill="none" stroke={INK} strokeWidth="2.2" />
         <text x="320" y="252" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="15" fill={INK}>
@@ -218,7 +218,7 @@ export function InstalacionArt({ className = "" }: { className?: string }) {
       </g>
 
       {/* lista de verificación */}
-      <g transform="rotate(8 486 210)">
+      <g>
         <rect x="446" y="160" width="84" height="104" fill={WHITE} {...stroke} strokeWidth={2.6} />
         <path d="m456 178 4 4 7-8" stroke={BLUE} strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         <line x1="474" y1="176" x2="520" y2="176" stroke={INK} strokeWidth="2.4" />
@@ -303,7 +303,7 @@ export function VotacionArt({ className = "" }: { className?: string }) {
       </g>
 
       {/* horario */}
-      <g transform="rotate(-4 470 372)">
+      <g>
         <rect x="396" y="348" width="150" height="46" fill={YELLOW} {...stroke} strokeWidth={2.6} />
         <text x="471" y="379" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="22" fill={INK}>
           07:00 – 17:00
@@ -412,17 +412,17 @@ export function EmbalajeArt({ className = "" }: { className?: string }) {
       <rect x="20" y="40" width="150" height="90" fill="url(#em-dots)" />
 
       {/* sobres clasificados */}
-      <g transform="rotate(-6 96 208)">
+      <g>
         <rect x="46" y="176" width="104" height="64" fill={BLUE} {...stroke} strokeWidth={2.6} />
         <path d="m46 180 52 36 52-36" fill="none" stroke={WHITE} strokeWidth="2.4" />
         <text x="98" y="232" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="18" fill={WHITE}>C1·C2·C3</text>
       </g>
-      <g transform="rotate(5 190 250)">
+      <g>
         <rect x="140" y="222" width="100" height="58" fill={YELLOW} {...stroke} strokeWidth={2.6} />
         <path d="m140 226 50 32 50-32" fill="none" stroke={INK} strokeWidth="2.2" />
         <text x="190" y="272" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="18" fill={INK}>T1 · T5</text>
       </g>
-      <g transform="rotate(-4 120 316)">
+      <g>
         <rect x="64" y="288" width="110" height="60" fill={RED} {...stroke} strokeWidth={2.6} />
         <path d="m64 292 55 34 55-34" fill="none" stroke={WHITE} strokeWidth="2.4" />
         <text x="119" y="340" textAnchor="middle" fontFamily="Anton, sans-serif" fontSize="18" fill={WHITE}>P1·P2·P3</text>
@@ -519,7 +519,7 @@ export function RotaryStamp({ className = "" }: { className?: string }) {
       </defs>
       <circle cx="80" cy="80" r="76" fill={WHITE} stroke={RED} strokeWidth="3" />
       <circle cx="80" cy="80" r="42" fill="none" stroke={RED} strokeWidth="2" strokeDasharray="4 5" />
-      <g className="spin-slow" style={{ transformOrigin: "80px 80px" }}>
+      <g>
         <text fontFamily="Archivo, sans-serif" fontWeight="800" fontSize="13.5" letterSpacing="3.2" fill={RED}>
           <textPath href="#stamp-circle">TU VOTO · TU DECISIÓN · SECCIONALES · CPCCS ·</textPath>
         </text>

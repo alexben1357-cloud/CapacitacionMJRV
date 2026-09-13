@@ -324,7 +324,7 @@ const paths: Record<IconName, JSX.Element> = {
   pegar: (
     <g>
       <rect x="8" y="10" width="32" height="28" fill="#fff" />
-      <rect x="18" y="4" width="12" height="12" fill={YELLOW} fillOpacity="0.8" transform="rotate(8 24 10)" />
+      <rect x="18" y="4" width="12" height="12" fill={YELLOW} fillOpacity="0.8" />
       <path d="M14 22h20M14 29h20" />
     </g>
   ),
